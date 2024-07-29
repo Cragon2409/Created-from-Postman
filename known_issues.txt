@@ -1,5 +1,7 @@
 - Occasionally a large polygon is drawn over the screen, potentially when an enemy tank dies?
+
 - Occasionally bullets seem to die when they are not supposed to.
+
 - Sometimes projectiles are killed twice and crashes when the chunk dict is accessed.
             Traceback (most recent call last):
         File "c:\Users\Crago\Desktop\Python\ongoing\games\diep\v1\v1.x\main.py", line 951, in <module>
@@ -20,4 +22,8 @@
             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
         ValueError: list.remove(x): x not in list
         PS C:\Users\Crago\Desktop\Python\ongoing\games\diep\v1\v1.x> 
+
 - Max zoom sometimes gets reset to the original value, not the value for the current tank. Maybe related to the preview tanks?
+
+- Food spawns on top of itself sometimes (likely the collision is wrong, checks points in each other but doesnt check centers in each other.)
+
