@@ -115,10 +115,16 @@ TANK_UPGRADE_TREE = {
 
 }
 
-MID_RANGER_TYPES = ["Basic", "Flank", "Machine Gun", "Twin", "Quad", "Double Twin", "Cannon" , "Gunner", "Triple Shot", "Octo", "Quad Twin", "Auto Gunner", "Fighter", "Penta Shot", "Mortar", ]
+MID_RANGER_TYPES = ["Basic", "Flank", "Machine Gun", "Twin", "Quad", "Double Twin", "Cannon" , "Gunner", "Triple Shot", "Octo", "Quad Twin", "Auto Gunner", "Fighter", "Penta Shot", "Mortar"]
 LONG_RANGER_TYPES = ["Sniper", "Hunter", "Stalker"]
 SUMMONER_TYPES = ["Overseer", "Battleship", "Hybrid"]
 MELEE_TYPES = ["Boxer"]
+
+TANK_TIER_0 = ["Basic"]
+TANK_TIER_1 = ["Flank", "Machine Gun", "Twin", "Sniper"]
+TNAK_TIER_2 = ["Cannon", "Quad", "Double Twin", "Overseer", "Hunter", "Gunner", "Hybrid", "Triple Shot"]
+TANK_TIER_3 = ["Boxer", "Octo", "Quad Twin", "Auto Gunner", "Fighter", "Penta Shot", "Mortar", "Stalker", "Battleship"]
+
 """
 Some useful math:
 

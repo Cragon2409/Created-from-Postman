@@ -10,6 +10,8 @@ import pygame,math
 from random import randrange,choice
 from helpers import *
 from tank_details import *
+from constants import *
+from bots_ai import *
 
 
 ##################################################################
@@ -30,178 +32,30 @@ myfont = pygame.font.SysFont("monospace", 20)
 fancyFont = pygame.font.SysFont("calibri", 22)
 
 ##################################################################
-###                          CONSTANTS                         ###
+###                          GRAPHICS CONSTANTS                ###
 ##################################################################
 
-MAP_CONSTANT = 3000
-D_R_CONST = math.pi/180
-# POLY_AREAS = [ polyArea(n+3,40) for n in range(3) ]
 S_CENT = [dw//2, dh//2]
 S_RECT = [0,0,dw,dh]
 EX_MARGIN = 300
+
 EX_S_RECT = [-EX_MARGIN, -EX_MARGIN, dw+2*EX_MARGIN, dh+2*EX_MARGIN]
 S_CORNER_POS = [[0,0], [dw,0], [dw,dh], [0,dh]]
 M_DI = {pygame.K_w:(0,-1),pygame.K_a:(-1,0),pygame.K_s:(0,1),pygame.K_d:(1,0)}
 
-MAP_RECT = [-MAP_CONSTANT,-MAP_CONSTANT,MAP_CONSTANT*2,MAP_CONSTANT*2]
-MAP_AREA = MAP_RECT[2]*MAP_RECT[3]
-
-LEVEL_UPGRADES = [10, 20, 30]
-MAX_LEVEL = 30
-
-TANK_UPGRADE_NAMES = ["Bullet Health","Bullet Endurance","Bullet Damage","Bullet Speed", "Reload", "Player Speed","Health Regeneration","Player Max Health","Body Damage"]
-MAX_TANK_UPGRADE = 8
-BULLET_HEALTH_M, BULLET_ENDURANCE_M, BULLET_SPEED_M, BULLET_DMG_M = 5,5,1,1
-
-LEADERBOARD_LEN = 7
-
 BORDER_COLOUR = [200]*3
 XPB_LENGTH = (dw-120)//5
 XPB_POS = dw//2-XPB_LENGTH//2
-# adds = [ [n%2,n//2] for n in range(4) ]#
-# adds2 = [ [n%5-2,n//5-2] for n in range(25) ]
 
-MAX_STAT_LVL = 10
-KILL_XP_MULT = 0.4
 
-CRCL_SH_CD = 0 #[radius]
-POLY_SH_CD = 1 #[points centered at the origin]
-
-DRW_NONE     = -1
-DRW_TANK_PLR = 0
-DRW_TANK_BOT = 1
-DRW_FOOD     = 2
-DRW_PROJ_BLT = 3
-DRW_PROJ_FLW = 4
-
-DRW_ORDER = [
-    [DRW_PROJ_BLT, DRW_PROJ_FLW],
-    [DRW_FOOD],
-    [DRW_TANK_BOT, DRW_TANK_PLR]
-]
-
-FOOD_DENSITY = 20#how many food per 1,000,000 units^2 (1,000 units)^2
-STATIC_FOOD_NUM = int(FOOD_DENSITY * MAP_AREA/(1000000))
-print("num foods",STATIC_FOOD_NUM)
-
-CIRCLE_CODES = [DRW_PROJ_BLT,DRW_TANK_BOT,DRW_TANK_PLR]
-POLY_CODES = [DRW_FOOD, DRW_PROJ_FLW]
-
-SHP_TRIANGLE = 3
-SHP_SQUARE = 4
-SHP_PENTAGON = 5
-
-SHP_CODES = [SHP_TRIANGLE, SHP_SQUARE, SHP_PENTAGON]
-
-SHP_SIDES   = [0,0,0,3,4,5,5]
-SHP_SIZES   = [0,0,0,12,15,18,80]
-SHP_XP      = [0,0,0,20,10,100,10000]
 SHP_COLS    = [None,None,None, red, yellow, blue, blue]
-SHP_HEALTH  = [0,0,0,12,40,250, 10000]
 
-FOOD_HUB_BORDER = 100
-FOOD_HUB_RECT = [-MAP_CONSTANT+FOOD_HUB_BORDER, -MAP_CONSTANT+FOOD_HUB_BORDER, MAP_CONSTANT*2-2*FOOD_HUB_BORDER, MAP_CONSTANT*2-2*FOOD_HUB_BORDER]
-FOOD_HUB_DENSITY = 1 #how many hubs per 1,000,000 units^2 = (10,000 units)^2
-FOOD_HUB_N = int(FOOD_HUB_DENSITY * MAP_AREA/(1000000))
-print("FOOD HUBS:",FOOD_HUB_N)
-### Set up food spawning map
-
-FOOD_HUB_CHANCE    = 95 #out of 100
-
-FOOD_HUB_SEPERATION = 100
-FOOD_SPAWN_WEIGHT  = [3]*(10) + [4]*8 + [5]*1
-FOOD_HUB_CODES     = [[3],  [4],    [3,3,3,4],  [5],     [3,4,4,5],      [5]*30+[6]]
-FOOD_HUB_RADII     = [200,  150,    250,        150,     350,            400]
-FOOD_HUB_FREQ      = [4,    4,      8,          2,        6,            1]
-FOOD_HUB_W_INDS    = []
-for n in range(len(FOOD_HUB_CODES)): FOOD_HUB_W_INDS += [n]*FOOD_HUB_FREQ[n]
-
-food_hubs = [ [(0,0), FOOD_HUB_CODES[-1], FOOD_HUB_RADII[-1]] ] #( [POS, CODES, RADIUS], ... )
-food_hubs_w_inds = [0]
-for n in range(1,FOOD_HUB_N+1):
-    hub_type_ind = choice(FOOD_HUB_W_INDS)
-    codes, radius, freq = FOOD_HUB_CODES[hub_type_ind], FOOD_HUB_RADII[hub_type_ind], FOOD_HUB_FREQ[hub_type_ind]
-
-    try_pos = randomInRect(FOOD_HUB_RECT)
-    while any([coDistance(try_pos,hub[0]) <= radius+hub[2]+FOOD_HUB_SEPERATION for hub in food_hubs]): try_pos = randomInRect(FOOD_HUB_RECT) #could get stuck on an infinite loop here, be careful!
-
-    food_hubs.append([try_pos, codes, radius])
-    food_hubs_w_inds += [n]*freq
-
-WEIGHTED_FOOD_CODES = [5]*1 + [3]*4 + [4]*5
-
-
-FOOD_VEL_TOLERANCE = 0.02
-FOOD_ROT_VEL_TOLERANCE = 0.005
-
-DRAG = 0.95
-BULLET_DRAG = 0.98
-FOLLOWER_DRAG = 0.95
-ROT_DRAG = 0.80
-FOOD_ROT_DRAG = 0.99
-FOOD_DRAG = 0.99
-
-FOOD_ROT_COEFF = 0.5
-
-ROT_TOLERANCE = 0.001
-PROJ_MOM_TRANSFER = 0.3
-
-FLW_SIZE_MULT = 3
-FLW_ACC_MULT = 0.04
-FLW_DIST = 5
-FLW_DIST_MULT = 0.2
-FLW_DEFLECT_MULT = 0.3
-FLW_ROT_ACC_MAG = 0.02
-FLW_ROT_ACC_LIMITER = 0.02
-
-DNSTY_TANK = 10
-DNSTY_BULLET = 4
-DNSTY_FLWR = 1
-DNSTY_TRT = 10
-DNSTY_FOOD = 5
-
-LENGTH_DRAW_TICKS_HALF = 10
-LENGTH_DRAW_SCALE = 1
-
-CHUNK_SIZE = 40
-NEIGHBOURS = [(-1,-1), (0,-1), (1,-1), (-1,0),(0,0), (1,0), (-1,1), (0,1), (1,1)] #includes self
-
-SHOW_FPS = True
-
-DMG_ANIMATION_DURATION = 20
-
-HB_WIDTH = 15
-HB_HEIGHT = 3
-
-TRI_COEFF = math.sqrt(3)/4
-
-TANK_STATS_NAMES = ["Max Health", "Health Regeneration", "Player Speed", "Body Damage", "Bullet Damage", "Bullet Endurance", "Bullet Speed", "Reload"]
-TANK_STATS_LEN = len(TANK_STATS_NAMES)
-PLAYER_STATS_RECTS = [[10,dh-TANK_STATS_LEN*32+n*32,205,30] for n in range(TANK_STATS_LEN)]
-
-PLAYER_EVOLVE_SQUARES = [[10+x*160,10+y*160,150,150] for x,y in [(0,0),(0,1),(1,0),(1,1)]]
-PREVIEW_ROT_SPEED = 0.02
-
-ZOOM_STRENGTH = 1.05
-ZOOM_RANGE = [2,6.5]
-
-
-STATIC_BOTS_NUM = 20
-
-NAME_TEXT_SIZE_MULT = 0.5
-
-PLAYER_NAME = "Cragon"
 
 MESSAGE_LOG_POS = [dw-400,dh-50]
 LEADERBOARD_POS = [dw-350,450]
 
-BOT_VIEW_DIST = [480,320]#[120,80] #rectangular because human view is rectangular
-BOT_VIEW_RECT = [-BOT_VIEW_DIST[0]//2, -BOT_VIEW_DIST[1]//2] + BOT_VIEW_DIST
 
-
-
-
-
+PLAYER_STATS_RECTS = [[10,dh-TANK_STATS_LEN*32+n*32,205,30] for n in range(TANK_STATS_LEN)]
 
 ##################################################################
 ###                          GLOBAL VARS                       ###
@@ -290,7 +144,6 @@ class ChunkManager:
                 chunk_st = str(x_ch) + '_' + str(y_ch)
                 entities += self.getChunk(chunk_st)
         return entities
-
          
 
 class CollisionObject:
@@ -547,6 +400,7 @@ class Tank(CollisionObject):
         self.radius = stats[8]
         self.tank_shape_type = stats[9]
         ZOOM_RANGE[0] = stats[10]
+        if self.DRAW_CODE == DRW_TANK_PLR: self.game.camera.zoom = limit(self.game.camera.zoom, ZOOM_RANGE[1], ZOOM_RANGE[0])
     def faceTowards(self,r_co):
         self.orientation = twoCoAngle(self.pos, r_co)   
     def accelerate(self,di): #assumes normalised direction
@@ -577,6 +431,7 @@ class Tank(CollisionObject):
             self.upgrade_points += 1
             if self.xp_level in LEVEL_UPGRADES:
                 self.evolve_upgrade_points += 1  
+            if self.DRAW_CODE == DRW_TANK_BOT: self.checkUpgrades()
     def update(self):
         #update position
         for n in range(2):
@@ -606,8 +461,10 @@ class Player(Tank):
     DRAW_CODE = DRW_TANK_PLR
     name = PLAYER_NAME
     col = [20,170,90]
-    def __init__(self, game, start_pos, start_type,preview=False):
+    def __init__(self, game, camera, start_pos, start_type,preview=False):
         self.preview = preview
+        self.camera = camera
+        self.camera.user = self
         if not preview: 
             super().__init__(game, start_pos, start_type)
         else: #preview initialisation
@@ -649,54 +506,33 @@ class Bot(Tank):
     def __init__(self, game, start_pos, start_type):
         super().__init__(game, start_pos, start_type)
         self.name = genUsername()  
-        self.control_func = self.basic_agent
         self.target = DummyPosition(self.game.randomPos())
         self.follower_move_code = 0
         self.follower_move_pos = self.pos
+        self.intro_func, self.upgrade_levels_func, self.evolve_path_func, self.update_func = BOT_AI_FUNCS["Basic Random"]
+
+        # Initialise AI
+        self.intro_func(self)
+        self.evolve_path = self.evolve_path_func()
+        self.upgrade_point_path = self.upgrade_levels_func(self.evolve_path)
+
     def kill(self):
         self.game.killBot(self)  
     def getFollowerInfo(self):
         return self.follower_move_pos, self.follower_move_code
     def controlAI(self,ticks):
-        self.control_func(ticks)
+        self.update_func(self, ticks)
     #Agent Funcs
-    def basic_agent(self, ticks): 
-        """
-        Basic agent - attacks nearest target, follows random upgrade path for stats and evolutions.
-        """
-        # Pick target
-        if ticks % 30 == 0: #FIXME report when target dies and remove reference
-            nearby_ents = list(filter(lambda x: x != self and (x.DRAW_CODE in [DRW_FOOD, DRW_TANK_BOT, DRW_TANK_PLR]), self.game.chunkManager.getInRect(dA(self.pos, BOT_VIEW_RECT[:2]), dS(self.pos, BOT_VIEW_RECT[:2]))))
-            if nearby_ents != []: self.target = min(nearby_ents, key = lambda x : coDistance(x.pos, self.pos))
-            elif self.target.DRAW_CODE != DRW_NONE or coDistance(self.pos, self.target.pos) < self.chase_distance: self.target = DummyPosition(self.game.randomPos())
-
-        # Look at target
-        self.faceTowards(self.target.pos)
-
-        # Navigate to/Shoot at target
-        dist = coDistance(self.pos, self.target.pos)
-        if dist <= self.chase_distance:
-            self.auto_fire = True
-            self.follower_move_code = 0 #attack/hover code
-            if self.target.DRAW_CODE != DRW_NONE: self.follower_move_pos = self.target.pos
-            else: self.follower_move_pos =  dA(self.pos, vecSub(dS(self.target.pos, self.pos), self.radius*4 + self.current_followers*0.5))
-        else:
-            self.follower_move_code = 0#attack/hover code
-            self.follower_move_pos =  dA(self.pos, vecSub(dS(self.target.pos, self.pos), self.radius*4 + self.current_followers*0.5))
-            self.auto_fire = False
-            self.accelerate(vecSub(dS(self.target.pos,self.pos),1))
-
-        #if randrange(0,50) == 0: self.addXP(1000) #FIXME remove
-        
+    def checkUpgrades(self):
         # Check for level ups
         while (self.upgrade_points > 0):
-            stat_ind = randrange(0,TANK_STATS_LEN)
-            while self.tank_stats[stat_ind] >= MAX_STAT_LVL: stat_ind = randrange(0,TANK_STATS_LEN)
+            eff_level = self.xp_level - self.upgrade_points
+            stat_ind = self.upgrade_point_path[eff_level]
             self.upgradeStat(stat_ind)
+            self.upgrade_points -= 1
         while self.evolve_upgrade_points > 0:
-            if self.tank_type in TANK_UPGRADE_TREE: 
-                self.changeTankType(choice(TANK_UPGRADE_TREE[self.tank_type]))
-                self.evolve_upgrade_points -= 1
+            self.changeTankType(self.evolve_path[self.evolve_path.index(self.tank_type)+1])
+            self.evolve_upgrade_points -= 1
     def upgradeStat(self,stat_ind):
         if self.upgrade_points > 0:
             self.tank_stats[stat_ind] += 1
@@ -706,10 +542,7 @@ class Bot(Tank):
         return False
 
 
-class DummyPosition: #dummy position object made for bot AI code
-    DRAW_CODE = DRW_NONE
-    def __init__(self,pos):
-        self.pos = pos
+    
 
 class Food(CollisionObject):
     DRAW_CODE = DRW_FOOD
@@ -744,6 +577,7 @@ class Food(CollisionObject):
 
             self.rotation += self.rot_vel
             self.rot_vel *= FOOD_ROT_DRAG
+            self.rot_vel = min(self.rot_vel, MAX_FOOD_ROT_VEL)
             self.updatePolys()
         else:
             self.rot_vel = 0
@@ -764,10 +598,6 @@ class Food(CollisionObject):
             return True
         else: return False
     
-
-
-
-
 
 ### Game Object
 class Game:
@@ -831,6 +661,8 @@ class Game:
     def generate_food(self):
         tries = 0
         while ((tries == 0) or (new_food.checkCollisions())) and tries < 100:
+            if tries != 0:
+                new_food.colKill()
             if randrange(0,100) < FOOD_HUB_CHANCE:
                 hub = food_hubs[choice(food_hubs_w_inds)]
                 new_food = Food(self, choice(hub[1]), randomCircular(hub[0],hub[2]))
@@ -881,11 +713,11 @@ class Game:
 
 class Camera:
     minimapTransform = lambda self,co : dInt(dA(dSM(104,[ (i+MAP_CONSTANT)/(MAP_CONSTANT*2) for i in co ]),[3+dim[0]-120,3+10]))
-    def __init__(self, game, user):
-        self.game, self.user = game, user
+    def __init__(self, game):
+        self.game = game
         self.game.camera = self
         self.zoom = 5
-        self.offset = [-user.pos[0], -user.pos[1]]
+        self.offset = [0,0]
     def onScroll(self,button):
         r_co = self.dToR(S_CENT)
         self.zoom *= ZOOM_STRENGTH if button == 4 else (1/ZOOM_STRENGTH)
@@ -993,6 +825,7 @@ class Camera:
         #minimap
         pygame.draw.rect(screen,white,[dw-120,10,110,110])
         pygame.draw.rect(screen,black,[dw-120,10,110,110],2)
+        for bots in self.game.bots: pygame.draw.circle(screen, bots.col, self.minimapTransform(bots.pos),3 )
         pygame.draw.circle(screen,self.user.col,self.minimapTransform(self.user.pos),3)
         pygame.draw.polygon(screen, yellow, [self.minimapTransform(self.dToR(co)) for co in S_CORNER_POS], 1)
 
@@ -1064,23 +897,37 @@ class Menu:
 ###                       GAME LOOP                            ###
 ##################################################################
 
+#setup food hubs
+food_hubs = [ [(0,0), FOOD_HUB_CODES[-1], FOOD_HUB_RADII[-1]] ] #( [POS, CODES, RADIUS], ... )
+food_hubs_w_inds = [0]
+for n in range(1,FOOD_HUB_N+1):
+    hub_type_ind = choice(FOOD_HUB_W_INDS)
+    codes, radius, freq = FOOD_HUB_CODES[hub_type_ind], FOOD_HUB_RADII[hub_type_ind], FOOD_HUB_FREQ[hub_type_ind]
+
+    try_pos = randomInRect(FOOD_HUB_RECT)
+    while any([coDistance(try_pos,hub[0]) <= radius+hub[2]+FOOD_HUB_SEPERATION for hub in food_hubs]): try_pos = randomInRect(FOOD_HUB_RECT) #could get stuck on an infinite loop here, be careful!
+
+    food_hubs.append([try_pos, codes, radius])
+    food_hubs_w_inds += [n]*freq
+
 #instansiate classes and vars
 ticks = 0
 collision_list = []
 
 chnkMngr = ChunkManager()
 game = Game(chnkMngr)
-
+camera = Camera(game)
 
 #set up player evolve previews
 PLAYER_EVOLVE_PREVIEWS = dict()
-for tank_name in ALL_TANK_NAMES: PLAYER_EVOLVE_PREVIEWS[tank_name] = Player(game, [0,0], tank_name,preview=True)
+for tank_name in ALL_TANK_NAMES: PLAYER_EVOLVE_PREVIEWS[tank_name] = Player(game, camera, [0,0], tank_name,preview=True)
 
-user = Player(game,[MAP_CONSTANT//2, MAP_CONSTANT//2], "Basic", preview=False)
-camera = Camera(game,user)
+user = Player(game, camera, [MAP_CONSTANT//2, MAP_CONSTANT//2], "Basic", preview=False)
 
 #user.addXP(1000000)
 for t in list(game.bots) + [user]: t.addXP(randrange(0,500000))
+
+
 
 #main loop
 game_exit = False
