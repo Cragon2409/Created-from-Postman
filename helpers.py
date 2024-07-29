@@ -95,6 +95,14 @@ def closestRads(r,r0,r1): #return the number out of r0,r1 closest to r
     if r0_dist < r1_dist: return 0#r0
     else: return 1 #r1
 
+def randomCircular(pos,max_dist): #uses integers
+    dist = randrange(0,max_dist+1)
+    angle = randrange(0,360)/(2*PI)
+    return dA(pos,ciS(dist,angle))
+
+
+def randomInRect(rect): #uses integers
+    return [rect[0] + randrange(0,rect[2]+1), rect[1]+randrange(0,rect[3]+1)]
 
 def decRandom():#-1 to 1
     return randrange(-1000,1001)/1000

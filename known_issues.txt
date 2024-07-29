@@ -1,0 +1,2 @@
+- Occasionally a large polygon is drawn over the screen, potentially when an enemy tank dies?
+- Occasionally bullets seem to die when they are not supposed to.

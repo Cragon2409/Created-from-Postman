@@ -43,20 +43,23 @@ EX_S_RECT = [-EX_MARGIN, -EX_MARGIN, dw+2*EX_MARGIN, dh+2*EX_MARGIN]
 S_CORNER_POS = [[0,0], [dw,0], [dw,dh], [0,dh]]
 M_DI = {pygame.K_w:(0,-1),pygame.K_a:(-1,0),pygame.K_s:(0,1),pygame.K_d:(1,0)}
 
-LEVEL_UPGRADES = [15,30,45]
-MAX_LEVEL = 45
+MAP_RECT = [-MAP_CONSTANT,-MAP_CONSTANT,MAP_CONSTANT*2,MAP_CONSTANT*2]
+MAP_AREA = MAP_RECT[2]*MAP_RECT[3]
+
+LEVEL_UPGRADES = [10, 20, 30]
+MAX_LEVEL = 30
 
 TANK_UPGRADE_NAMES = ["Bullet Health","Bullet Endurance","Bullet Damage","Bullet Speed", "Reload", "Player Speed","Health Regeneration","Player Max Health","Body Damage"]
 MAX_TANK_UPGRADE = 8
 BULLET_HEALTH_M, BULLET_ENDURANCE_M, BULLET_SPEED_M, BULLET_DMG_M = 5,5,1,1
 
-LEADERBOARD_LEN = 8
+LEADERBOARD_LEN = 7
 
 BORDER_COLOUR = [200]*3
 XPB_LENGTH = (dw-120)//5
 XPB_POS = dw//2-XPB_LENGTH//2
-adds = [ [n%2,n//2] for n in range(4) ]#
-adds2 = [ [n%5-2,n//5-2] for n in range(25) ]
+# adds = [ [n%2,n//2] for n in range(4) ]#
+# adds2 = [ [n%5-2,n//5-2] for n in range(25) ]
 
 MAX_STAT_LVL = 10
 KILL_XP_MULT = 0.4
@@ -77,7 +80,9 @@ DRW_ORDER = [
     [DRW_TANK_BOT, DRW_TANK_PLR]
 ]
 
-STATIC_FOOD_NUM = 300
+FOOD_DENSITY = 20#how many food per 1,000,000 units^2 (1,000 units)^2
+STATIC_FOOD_NUM = int(FOOD_DENSITY * MAP_AREA/(1000000))
+print("num foods",STATIC_FOOD_NUM)
 
 CIRCLE_CODES = [DRW_PROJ_BLT,DRW_TANK_BOT,DRW_TANK_PLR]
 POLY_CODES = [DRW_FOOD, DRW_PROJ_FLW]
@@ -88,10 +93,43 @@ SHP_PENTAGON = 5
 
 SHP_CODES = [SHP_TRIANGLE, SHP_SQUARE, SHP_PENTAGON]
 
-SHP_SIZES   = [0,0,0,12,15,18]
-SHP_XP      = [0,0,0,20,10,100]
-SHP_COLS    = [None,None,None, red, yellow, blue]
-SHP_HEALTH  = [0,0,0,12,40,250]
+SHP_SIDES   = [0,0,0,3,4,5,5]
+SHP_SIZES   = [0,0,0,12,15,18,80]
+SHP_XP      = [0,0,0,20,10,100,10000]
+SHP_COLS    = [None,None,None, red, yellow, blue, blue]
+SHP_HEALTH  = [0,0,0,12,40,250, 10000]
+
+FOOD_HUB_BORDER = 100
+FOOD_HUB_RECT = [-MAP_CONSTANT+FOOD_HUB_BORDER, -MAP_CONSTANT+FOOD_HUB_BORDER, MAP_CONSTANT*2-2*FOOD_HUB_BORDER, MAP_CONSTANT*2-2*FOOD_HUB_BORDER]
+FOOD_HUB_DENSITY = 1 #how many hubs per 1,000,000 units^2 = (10,000 units)^2
+FOOD_HUB_N = int(FOOD_HUB_DENSITY * MAP_AREA/(1000000))
+print("FOOD HUBS:",FOOD_HUB_N)
+### Set up food spawning map
+
+FOOD_HUB_CHANCE    = 95 #out of 100
+
+FOOD_HUB_SEPERATION = 100
+FOOD_SPAWN_WEIGHT  = [3]*(10) + [4]*8 + [5]*1
+FOOD_HUB_CODES     = [[3],  [4],    [3,3,3,4],  [5],     [3,4,4,5],      [5]*30+[6]]
+FOOD_HUB_RADII     = [200,  150,    250,        150,     350,            400]
+FOOD_HUB_FREQ      = [4,    4,      8,          2,        6,            1]
+FOOD_HUB_W_INDS    = []
+for n in range(len(FOOD_HUB_CODES)): FOOD_HUB_W_INDS += [n]*FOOD_HUB_FREQ[n]
+
+food_hubs = [ [(0,0), FOOD_HUB_CODES[-1], FOOD_HUB_RADII[-1]] ] #( [POS, CODES, RADIUS], ... )
+food_hubs_w_inds = [0]
+for n in range(1,FOOD_HUB_N+1):
+    hub_type_ind = choice(FOOD_HUB_W_INDS)
+    codes, radius, freq = FOOD_HUB_CODES[hub_type_ind], FOOD_HUB_RADII[hub_type_ind], FOOD_HUB_FREQ[hub_type_ind]
+
+    try_pos = randomInRect(FOOD_HUB_RECT)
+    while any([coDistance(try_pos,hub[0]) <= radius+hub[2]+FOOD_HUB_SEPERATION for hub in food_hubs]): try_pos = randomInRect(FOOD_HUB_RECT) #could get stuck on an infinite loop here, be careful!
+
+    food_hubs.append([try_pos, codes, radius])
+    food_hubs_w_inds += [n]*freq
+
+WEIGHTED_FOOD_CODES = [5]*1 + [3]*4 + [4]*5
+
 
 FOOD_VEL_TOLERANCE = 0.02
 FOOD_ROT_VEL_TOLERANCE = 0.005
@@ -103,10 +141,10 @@ ROT_DRAG = 0.80
 FOOD_ROT_DRAG = 0.99
 FOOD_DRAG = 0.99
 
-FOOD_ROT_COEFF = 1
+FOOD_ROT_COEFF = 0.5
 
-ROT_TOLERANCE = 0.01
-PROJ_MOM_TRANSFER = 0.2
+ROT_TOLERANCE = 0.001
+PROJ_MOM_TRANSFER = 0.3
 
 FLW_SIZE_MULT = 3
 FLW_ACC_MULT = 0.04
@@ -120,7 +158,7 @@ DNSTY_TANK = 10
 DNSTY_BULLET = 4
 DNSTY_FLWR = 1
 DNSTY_TRT = 10
-DNSTY_FOOD = 10
+DNSTY_FOOD = 5
 
 LENGTH_DRAW_TICKS_HALF = 10
 LENGTH_DRAW_SCALE = 1
@@ -157,8 +195,13 @@ PLAYER_NAME = "Cragon"
 MESSAGE_LOG_POS = [dw-400,dh-50]
 LEADERBOARD_POS = [dw-350,450]
 
-BOT_VIEW_DIST = [240,160]#[120,80] #rectangular because human view is rectangular
+BOT_VIEW_DIST = [480,320]#[120,80] #rectangular because human view is rectangular
 BOT_VIEW_RECT = [-BOT_VIEW_DIST[0]//2, -BOT_VIEW_DIST[1]//2] + BOT_VIEW_DIST
+
+
+
+
+
 
 ##################################################################
 ###                          GLOBAL VARS                       ###
@@ -398,6 +441,7 @@ class Follower(Projectile):
         self.col_poly = [dA(shift,vecRot(co,self.rotation)) for co in self.o_col_poly]
     def update(self):
         target_pos, attraction_mode = self.owner.getFollowerInfo()
+        
         if attraction_mode == 0: #attraction
             dist = coDistance(self.pos, target_pos)
             if dist >= FLW_DIST + self.owner.current_followers*FLW_DIST_MULT: self.vel = dA(self.vel, vecSub(dS(target_pos,self.pos), self.acc_mag))
@@ -485,7 +529,7 @@ class Tank(CollisionObject):
         self.mass = PI*self.radius**2 + sum([tur.mass for tur in self.turrets])
         self.assignStats()
     def assignStats(self):
-        stats = nupleAdd(TANK_STATS[self.tank_type], self.tank_stats + [0,0], 10)
+        stats = nupleAdd(TANK_STATS[self.tank_type], self.tank_stats + [0,0,0], 11)
         prev_max_health = self.max_health
         self.max_health = 100 + 10*stats[0]
         self.health += self.max_health - prev_max_health 
@@ -502,6 +546,7 @@ class Tank(CollisionObject):
 
         self.radius = stats[8]
         self.tank_shape_type = stats[9]
+        ZOOM_RANGE[0] = stats[10]
     def faceTowards(self,r_co):
         self.orientation = twoCoAngle(self.pos, r_co)   
     def accelerate(self,di): #assumes normalised direction
@@ -537,7 +582,7 @@ class Tank(CollisionObject):
         for n in range(2):
             nPos = self.pos[:]
             nPos[n] += self.vel[n]
-            if not circleInRect(nPos,self.game.mapRect,self.radius): self.vel[n] = 0
+            if not circleInRect(nPos,MAP_RECT,self.radius): self.vel[n] = 0
         self.vel = dSM(DRAG, self.vel)
         self.pos = dA(self.pos,self.vel)
         self.game.chunkManager.update_obj(self)
@@ -611,7 +656,7 @@ class Bot(Tank):
     def kill(self):
         self.game.killBot(self)  
     def getFollowerInfo(self):
-        return self.follower_move_code, self.follower_move_pos
+        return self.follower_move_pos, self.follower_move_code
     def controlAI(self,ticks):
         self.control_func(ticks)
     #Agent Funcs
@@ -671,7 +716,7 @@ class Food(CollisionObject):
     name = "Food"
     density = DNSTY_FOOD
     def __init__(self,game,food_code, start_pos):
-        self.sides = food_code
+        self.sides = SHP_SIDES[food_code]
         self.col = SHP_COLS[food_code]
         self.side_length = SHP_SIZES[food_code]
         self.max_health = self.health = SHP_HEALTH[food_code]
@@ -687,7 +732,8 @@ class Food(CollisionObject):
         self.updatePolys()
 
         self.mass = self.density*polyArea(self.sides, self.side_length)
-        self.mOI = self.mass * self.r**2 / 24 * (1 + 3*cot2(PI/self.sides))
+        self.mOI = self.mass * self.r #uses fake mOI 
+        #Real mOI: self.mass * self.r**2 / 24 * (1 + 3*cot2(PI/self.sides))
     def update(self):
         self.game.chunkManager.update_obj(self)
         self.dmg_ticks = max(self.dmg_ticks-1,0)
@@ -719,12 +765,16 @@ class Food(CollisionObject):
         else: return False
     
 
+
+
+
+
 ### Game Object
 class Game:
     def __init__(self,chunkManager):
         self.foods = set()
         self.bots = set()
-        self.mapRect = [-MAP_CONSTANT,-MAP_CONSTANT,MAP_CONSTANT*2,MAP_CONSTANT*2]
+        
         self.chunkManager = chunkManager
         chunkManager.game = self
 
@@ -779,9 +829,20 @@ class Game:
     def randomPos(self,border=10):
         return [randrange(-MAP_CONSTANT+border, MAP_CONSTANT-border), randrange(-MAP_CONSTANT+border, MAP_CONSTANT-border)]
     def generate_food(self):
-        new_food = Food(self,choice(SHP_CODES), self.randomPos())
-        self.foods.add(new_food)
-        self.food_amount += 1
+        tries = 0
+        while ((tries == 0) or (new_food.checkCollisions())) and tries < 100:
+            if randrange(0,100) < FOOD_HUB_CHANCE:
+                hub = food_hubs[choice(food_hubs_w_inds)]
+                new_food = Food(self, choice(hub[1]), randomCircular(hub[0],hub[2]))
+            else:
+                new_food = Food(self,choice(WEIGHTED_FOOD_CODES), self.randomPos())
+            tries += 1
+        if tries < 100:
+            self.foods.add(new_food)
+            self.food_amount += 1
+            return True
+        else:
+            return False
     def generate_bot(self):
         new_bot = Bot(self, self.randomPos(), "Basic")
         self.bots.add(new_bot)
@@ -1019,7 +1080,7 @@ user = Player(game,[MAP_CONSTANT//2, MAP_CONSTANT//2], "Basic", preview=False)
 camera = Camera(game,user)
 
 #user.addXP(1000000)
-for t in list(game.bots) + [user]: t.addXP(randrange(0,5000))
+for t in list(game.bots) + [user]: t.addXP(randrange(0,500000))
 
 #main loop
 game_exit = False
