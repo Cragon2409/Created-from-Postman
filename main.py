@@ -155,9 +155,9 @@ NAME_TEXT_SIZE_MULT = 0.5
 PLAYER_NAME = "Cragon"
 
 MESSAGE_LOG_POS = [dw-400,dh-50]
-LEADERBOARD_POS = [dw-350,410]
+LEADERBOARD_POS = [dw-350,450]
 
-BOT_VIEW_DIST = [120,80] #rectangular because human view is rectangular
+BOT_VIEW_DIST = [240,160]#[120,80] #rectangular because human view is rectangular
 BOT_VIEW_RECT = [-BOT_VIEW_DIST[0]//2, -BOT_VIEW_DIST[1]//2] + BOT_VIEW_DIST
 
 ##################################################################
@@ -623,7 +623,7 @@ class Bot(Tank):
         if ticks % 30 == 0: #FIXME report when target dies and remove reference
             nearby_ents = list(filter(lambda x: x != self and (x.DRAW_CODE in [DRW_FOOD, DRW_TANK_BOT, DRW_TANK_PLR]), self.game.chunkManager.getInRect(dA(self.pos, BOT_VIEW_RECT[:2]), dS(self.pos, BOT_VIEW_RECT[:2]))))
             if nearby_ents != []: self.target = min(nearby_ents, key = lambda x : coDistance(x.pos, self.pos))
-            else: self.target = DummyPosition(self.game.randomPos())
+            elif self.target.DRAW_CODE != DRW_NONE or coDistance(self.pos, self.target.pos) < self.chase_distance: self.target = DummyPosition(self.game.randomPos())
 
         # Look at target
         self.faceTowards(self.target.pos)
@@ -641,7 +641,7 @@ class Bot(Tank):
             self.auto_fire = False
             self.accelerate(vecSub(dS(self.target.pos,self.pos),1))
 
-        #if randrange(0,50) == 0: self.addXP(1000) #FIXME removes
+        #if randrange(0,50) == 0: self.addXP(1000) #FIXME remove
         
         # Check for level ups
         while (self.upgrade_points > 0):

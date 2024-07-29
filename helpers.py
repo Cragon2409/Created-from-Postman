@@ -222,5 +222,5 @@ def circleInPoly(c_co,c_radius,true_polygon, col_polygon, centre, radius, rad_of
     
 WORD_LIST_1 = ["Cheese","Diamond","Fortnite","Roblox","Women","Men","Bannana","Pizza","Water",""]
 CONNECTIVE_LIST = ['','','-','_']
-WORD_LIST_2 = ["Lover","Hater","Haver","Player","Wanter","Pro","Expert","User","Consumer","Enjoyer"]
+WORD_LIST_2 = ["Lover","Hater","Haver","Player","Wanter","Pro","Expert","User","Consumer","Enjoyer", "God"]
 def genUsername(): return choice(WORD_LIST_1) + choice(CONNECTIVE_LIST) + choice(WORD_LIST_2) + (str(randrange(1000,10000)) if randrange(0,2) == 0 else "")
