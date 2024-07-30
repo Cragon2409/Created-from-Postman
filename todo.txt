@@ -1,1 +1,0 @@
-1. Make AI in a seperate file with standard interfaces.

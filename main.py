@@ -168,7 +168,7 @@ class CollisionObject:
     def collide(self, col_obj):
         if self.DRAW_CODE in POLY_CODES:
             if col_obj.DRAW_CODE in POLY_CODES: #polygon to polygon
-                return (coDistance(self.pos,col_obj.pos) <= self.r + col_obj.r) and (any([pointInPoly(co,col_obj.col_poly, col_obj.pos, col_obj.col_r, col_obj.col_rads) for co in self.poly]) or any([pointInPoly(co,self.col_poly, self.pos, self.col_r, self.col_rads ) for co in col_obj.poly]))
+                return (coDistance(self.pos,col_obj.pos) <= self.r + col_obj.r) and (pointInPoly(self.pos, col_obj.col_poly, col_obj.pos, col_obj.col_r, col_obj.col_rads) or any([pointInPoly(co,col_obj.col_poly, col_obj.pos, col_obj.col_r, col_obj.col_rads) for co in self.poly]) or any([pointInPoly(co,self.col_poly, self.pos, self.col_r, self.col_rads ) for co in col_obj.poly]))
             elif col_obj.DRAW_CODE in CIRCLE_CODES: #polygon to circle
                 return (coDistance(self.pos, col_obj.pos) <= self.r + col_obj.radius) and (circleInPoly(col_obj.pos,col_obj.radius, self.poly, self.col_poly, self.pos, self.col_r, self.col_rads))
                 # return (coDistance(self.pos, col_obj.pos) <= self.r + col_obj.radius) 
@@ -373,7 +373,7 @@ class Tank(CollisionObject):
         self.projs.remove(proj)
         del proj
     def setMaxXP(self):
-        self.xp_points_needed = 50+self.xp_level*150
+        self.xp_points_needed = 30+self.xp_level*100
     def changeTankType(self,new_type):
         self.tank_type = new_type
         self.turrets = []
@@ -399,8 +399,9 @@ class Tank(CollisionObject):
 
         self.radius = stats[8]
         self.tank_shape_type = stats[9]
-        ZOOM_RANGE[0] = stats[10]
-        if self.DRAW_CODE == DRW_TANK_PLR: self.game.camera.zoom = limit(self.game.camera.zoom, ZOOM_RANGE[1], ZOOM_RANGE[0])
+        if self.DRAW_CODE == DRW_TANK_PLR: 
+            ZOOM_RANGE[0] = stats[10]
+            self.game.camera.zoom = limit(self.game.camera.zoom, ZOOM_RANGE[1], ZOOM_RANGE[0])
     def faceTowards(self,r_co):
         self.orientation = twoCoAngle(self.pos, r_co)   
     def accelerate(self,di): #assumes normalised direction
@@ -660,9 +661,8 @@ class Game:
         return [randrange(-MAP_CONSTANT+border, MAP_CONSTANT-border), randrange(-MAP_CONSTANT+border, MAP_CONSTANT-border)]
     def generate_food(self):
         tries = 0
-        while ((tries == 0) or (new_food.checkCollisions())) and tries < 100:
-            if tries != 0:
-                new_food.colKill()
+        while ((tries == 0) or (not inRect(new_food.pos, MAP_RECT)) or (new_food.checkCollisions())) and tries < 100:
+            if tries != 0: new_food.colKill()
             if randrange(0,100) < FOOD_HUB_CHANCE:
                 hub = food_hubs[choice(food_hubs_w_inds)]
                 new_food = Food(self, choice(hub[1]), randomCircular(hub[0],hub[2]))
@@ -815,10 +815,13 @@ class Camera:
     def showPolygon(self,poly,colour,outline=0,outline_colour=None,override_zoom=None):
         zoom = override_zoom if override_zoom != None else self.zoom
         poly_d_pos = [self.rToD(i,zoom) for i in poly]
-        if any([inRect(i, EX_S_RECT) for i in poly_d_pos]):
+        if any([inRect(i, EX_S_RECT) for i in poly_d_pos]): 
+
             pygame.draw.polygon(screen,colour,poly_d_pos)
+            #pygame.draw.aalines(screen,colour, True, poly_d_pos)
             if outline > 0:
-                pygame.draw.polygon(screen,outline_colour,poly_d_pos,outline)
+                pygame.draw.aalines(screen,outline_colour, True, poly_d_pos)
+                #pygame.draw.polygon(screen,outline_colour,poly_d_pos,outline) #FUCKING BUG IM LEAVING THIS IN THIS WAS SO FCKNG ANNOYING TO FIX
             return True
         return False   
     def showOverlay(self,fps=0):
@@ -885,13 +888,18 @@ class Camera:
                 if obj.DRAW_CODE in valid_draw_codes: self.renderObj(obj)
 
         self.showOverlay(fps)
+        
+        #2560 1440 DIMS
+
+        # pygame.draw.polygon(screen, black,[[2584.969205043709, 636.3562709380935], [2613.894647479603, 601.8842709977398], [2590.048280589109, 563.7221066707007], [2546.3849729066887, 574.6085919726856], [2543.2459315882033, 619.4989742343778]],3) THIS IS AN EXAMPLE OF THE BUG!!!!!!
+        # pygame.draw.aalines(screen, red, False, [[2584.969205043709, 636.3562709380935], [2613.894647479603, 601.8842709977398], [2590.048280589109, 563.7221066707007], [2546.3849729066887, 574.6085919726856], [2543.2459315882033, 619.4989742343778], [2584.969205043709, 636.3562709380935]],3)
+
          
 class Menu:
     def __init__(self,game,user,camera):
         self.game, self.user, self.camera = game, user, camera
         game.menu = self
     #FIXME implement menu system
-
 
 ##################################################################
 ###                       GAME LOOP                            ###
@@ -924,8 +932,8 @@ for tank_name in ALL_TANK_NAMES: PLAYER_EVOLVE_PREVIEWS[tank_name] = Player(game
 
 user = Player(game, camera, [MAP_CONSTANT//2, MAP_CONSTANT//2], "Basic", preview=False)
 
-#user.addXP(1000000)
-for t in list(game.bots) + [user]: t.addXP(randrange(0,500000))
+user.addXP(1000000)
+for t in list(game.bots): t.addXP(randrange(0,500000))
 
 
 

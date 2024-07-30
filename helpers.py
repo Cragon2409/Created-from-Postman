@@ -232,3 +232,11 @@ WORD_LIST_1 = ["Cheese","Diamond","Fortnite","Roblox","Women","Men","Bannana","P
 CONNECTIVE_LIST = ['','','-','_']
 WORD_LIST_2 = ["Lover","Hater","Haver","Player","Wanter","Pro","Expert","User","Consumer","Enjoyer", "God"]
 def genUsername(): return choice(WORD_LIST_1) + choice(CONNECTIVE_LIST) + choice(WORD_LIST_2) + (str(randrange(1000,10000)) if randrange(0,2) == 0 else "")
+
+def furtherPairDist(li): #list of cos
+    all_dists = []
+    le = len(li)
+    for n in range(0,le-1):
+        for n_1 in range(n+1,le):
+            all_dists.append(coDistance(li[n], li[n_1]))
+    return max(all_dists)
