@@ -1,0 +1,1 @@
+#optimise collision to break early on any statements

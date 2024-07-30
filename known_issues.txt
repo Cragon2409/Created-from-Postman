@@ -25,3 +25,4 @@
 
 - Sometimes foods overlap slightly on the edge, the rotation on the polygons might be wrong for the collision
 
+- Having large food means chunk size must be large, but large chunk size slows down entire program!

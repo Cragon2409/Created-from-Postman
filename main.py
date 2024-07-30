@@ -30,6 +30,7 @@ clock = pygame.time.Clock()
 pygame.font.init()
 myfont = pygame.font.SysFont("monospace", 20)
 fancyFont = pygame.font.SysFont("calibri", 22)
+big_font = pygame.font.SysFont("calibri", 80)
 
 ##################################################################
 ###                          GRAPHICS CONSTANTS                ###
@@ -47,15 +48,19 @@ BORDER_COLOUR = [200]*3
 XPB_LENGTH = (dw-120)//5
 XPB_POS = dw//2-XPB_LENGTH//2
 
-
-SHP_COLS    = [None,None,None, red, yellow, blue, blue]
-
+SHP_COLS = [None,None,None, red, yellow, blue, purple]
 
 MESSAGE_LOG_POS = [dw-400,dh-50]
 LEADERBOARD_POS = [dw-350,450]
 
-
 PLAYER_STATS_RECTS = [[10,dh-TANK_STATS_LEN*32+n*32,205,30] for n in range(TANK_STATS_LEN)]
+
+MINIMAP_POS = [dw-120, 50]
+
+HORIZON_LINE = dh//2
+VER_SKY_COL = [10,5,5]
+VER_LAND_COL = [180]*3
+VER_LINE_COL = darkgreen
 
 ##################################################################
 ###                          GLOBAL VARS                       ###
@@ -87,6 +92,10 @@ def borderedRect(pos,width,height,borderThickness,mainColour,borderColour):#pos 
 def healthBar(pos,width,height,borderThickness,barColour,borderColour,backColour,percent):
     borderedRect(pos,width,height,borderThickness,backColour,borderColour)
     if percent != 0: pygame.draw.rect(screen,barColour,list(dA(pos,(borderThickness,borderThickness))) + [min(100,max(0,(percent)))*(width-borderThickness*2),height-borderThickness*2])
+def centText(inputText,center,colour=white,font=fancyFont):
+    textSurf, textRect = textObjects(inputText,font,colour)
+    textRect.center = center
+    screen.blit(textSurf,textRect)
 
 PDU = pygame.display.update
 
@@ -113,8 +122,13 @@ class ChunkManager:
             if not new_chunk_st in self.chunk_dict: self.chunk_dict[new_chunk_st] = [col_obj]
             else: self.chunk_dict[new_chunk_st].append(col_obj)
     def remove(self, col_obj):
-        self.chunk_dict[col_obj.chunk_st].remove(col_obj) #remove old chunk entity
-        if self.chunk_dict[col_obj.chunk_st] == []: del self.chunk_dict[col_obj.chunk_st]
+        try:
+            self.chunk_dict[col_obj.chunk_st].remove(col_obj) #remove old chunk entity
+            if self.chunk_dict[col_obj.chunk_st] == []: del self.chunk_dict[col_obj.chunk_st]
+        except:
+            print("error found!",col_obj)
+            print(col_obj.owner)
+            1/0
     def posToChunk(self, pos):
         return str(int(pos[0]//CHUNK_SIZE)) + '_' + str(int(pos[1]//CHUNK_SIZE))
     def posToChunkNum(self, pos):
@@ -174,7 +188,6 @@ class CollisionObject:
                 # return (coDistance(self.pos, col_obj.pos) <= self.r + col_obj.radius) 
         elif self.DRAW_CODE in CIRCLE_CODES: 
             if col_obj.DRAW_CODE in POLY_CODES: #circle to polygon
-                # return (coDistance(col_obj.pos, self.pos) <= col_obj.r + self.radius)
                 return (coDistance(col_obj.pos, self.pos) <= col_obj.r + self.radius) and (circleInPoly(self.pos,self.radius, col_obj.poly, col_obj.col_poly, col_obj.pos, col_obj.col_r, col_obj.col_rads))
             elif col_obj.DRAW_CODE in CIRCLE_CODES: #circle to circle
                 return coDistance(self.pos, col_obj.pos) <= self.radius + col_obj.radius
@@ -283,6 +296,10 @@ class Follower(Projectile):
         self.pos_anchor = self.pos[:]
         self.o_poly, self.r, self.o_col_poly, self.col_r, self.o_col_rads = generatePolygon([0,0], self.side_length, self.sides, 270/self.sides)
         self.updatePolys()
+        self.poly = self.o_poly[:]
+        self.col_poly = self.o_col_poly[:]
+        self.col_rads = self.o_col_rads
+
         self.dmg_ticks = 0
         self.acc_mag = self.owner.bullet_speed*FLW_ACC_MULT
         
@@ -350,7 +367,7 @@ class Tank(CollisionObject):
         self.projs = set()
         self.turrets = []
         for tur_stats in TANK_TURRET_SPECS[start_type]:
-           self.turrets.append(Turret(game, self, *tur_stats))
+           self.turrets.append(Turret(self.game, self, *tur_stats))
         self.mass = PI*self.radius**2 + sum([tur.mass for tur in self.turrets])
         
         self.pos = start_pos
@@ -378,7 +395,7 @@ class Tank(CollisionObject):
         self.tank_type = new_type
         self.turrets = []
         for tur_stats in TANK_TURRET_SPECS[new_type]:
-           self.turrets.append(Turret(game, self, *tur_stats))
+           self.turrets.append(Turret(self.game, self, *tur_stats))
         self.mass = PI*self.radius**2 + sum([tur.mass for tur in self.turrets])
         self.assignStats()
     def assignStats(self):
@@ -394,7 +411,7 @@ class Tank(CollisionObject):
         self.bullet_damage  = 1 + stats[4]
         self.bullet_endur   = 1 + stats[5]*0.5
         self.bullet_speed   = 2 + stats[6]/4
-        self.reload_ticks   = 60 - stats[7]*5
+        self.reload_ticks   = 60 - stats[7]*4
         self.max_followers = 10 + stats[7]*2
 
         self.radius = stats[8]
@@ -466,6 +483,7 @@ class Player(Tank):
         self.preview = preview
         self.camera = camera
         self.camera.user = self
+        self.dead = False
         if not preview: 
             super().__init__(game, start_pos, start_type)
         else: #preview initialisation
@@ -489,7 +507,9 @@ class Player(Tank):
             if keys[key]: di = dA(di, M_DI[key])
         if di != [0,0]: self.accelerate(vecSub(di))
     def kill(self):
-        pass #FIXME
+        self.dead = True
+    def isDead(self):
+        return self.dead
     def getFollowerInfo(self): #returns attraction pos, and attractor/repulse mode (0/1)
         m_r_pos = self.game.camera.dToR(pygame.mouse.get_pos())
         if pygame.mouse.get_pressed()[2]: #repulsor mode
@@ -554,6 +574,7 @@ class Food(CollisionObject):
         self.col = SHP_COLS[food_code]
         self.side_length = SHP_SIZES[food_code]
         self.max_health = self.health = SHP_HEALTH[food_code]
+        self.food_code = food_code
         self.pos = start_pos
         self.vel = [0,0]
         self.rot_vel = 0
@@ -626,7 +647,7 @@ class Game:
 
         #update bots and food
         for f in [f for f in self.foods if f.update()][::-1]: self.killFood(f)
-        # for b in [b for b in self.bots if b.update()][::-1]: self.killBot(b)
+        
         to_remove = []
         for b in self.bots:
             b.controlAI(ticks)
@@ -681,22 +702,22 @@ class Game:
         self.bots_amount += 1
     def onClick(self,m_co):
         button_clicked = False
-        if user.upgrade_points > 0:
+        if self.user.upgrade_points > 0:
             for c,rect in enumerate(PLAYER_STATS_RECTS):
                 if inRect(m_co,rect):
                     button_clicked = True
-                    if user.tank_stats[c] < MAX_TANK_UPGRADE:
-                        user.tank_stats[c] += 1
-                        user.upgrade_points -= 1
-                        user.assignStats()
-        if not button_clicked and user.evolve_upgrade_points > 0:
+                    if self.user.tank_stats[c] < MAX_TANK_UPGRADE:
+                        self.user.tank_stats[c] += 1
+                        self.user.upgrade_points -= 1
+                        self.user.assignStats()
+        if not button_clicked and self.user.evolve_upgrade_points > 0:
             tank_evolve_names = TANK_UPGRADE_TREE[self.user.tank_type] if self.user.tank_type in TANK_UPGRADE_TREE else []
             for c,name in enumerate(tank_evolve_names):
                 rect = PLAYER_EVOLVE_SQUARES[c]
                 if inRect(m_co,rect):
                     button_clicked = True
-                    user.evolve_upgrade_points -= 1
-                    user.changeTankType(name)
+                    self.user.evolve_upgrade_points -= 1
+                    self.user.changeTankType(name)
 
         if not button_clicked: self.user.onClick(m_co)
     def addMessage(self,txt,col,duration):
@@ -711,8 +732,9 @@ class Game:
         self.leaderboard = self.leaderboard[::-1]
 ### Camera Object
 
+
 class Camera:
-    minimapTransform = lambda self,co : dInt(dA(dSM(104,[ (i+MAP_CONSTANT)/(MAP_CONSTANT*2) for i in co ]),[3+dim[0]-120,3+10]))
+    minimapTransform = lambda self,co : dInt(dA(dSM(104,[ (i+MAP_CONSTANT)/(MAP_CONSTANT*2) for i in co ]),[3+MINIMAP_POS[0],3+MINIMAP_POS[1]]))
     def __init__(self, game):
         self.game = game
         self.game.camera = self
@@ -821,13 +843,13 @@ class Camera:
             #pygame.draw.aalines(screen,colour, True, poly_d_pos)
             if outline > 0:
                 pygame.draw.aalines(screen,outline_colour, True, poly_d_pos)
-                #pygame.draw.polygon(screen,outline_colour,poly_d_pos,outline) #FUCKING BUG IM LEAVING THIS IN THIS WAS SO FCKNG ANNOYING TO FIX
+                #pygame.draw.polygon(screen,outline_colour,poly_d_pos,outline) #FUCKING BUG IM LEAVING THIS COMMENT IN THIS WAS SO FCKNG ANNOYING TO FIX
             return True
         return False   
     def showOverlay(self,fps=0):
         #minimap
-        pygame.draw.rect(screen,white,[dw-120,10,110,110])
-        pygame.draw.rect(screen,black,[dw-120,10,110,110],2)
+        pygame.draw.rect(screen,white,MINIMAP_POS + [110,110])
+        pygame.draw.rect(screen,black,MINIMAP_POS + [110,110],2)
         for bots in self.game.bots: pygame.draw.circle(screen, bots.col, self.minimapTransform(bots.pos),3 )
         pygame.draw.circle(screen,self.user.col,self.minimapTransform(self.user.pos),3)
         pygame.draw.polygon(screen, yellow, [self.minimapTransform(self.dToR(co)) for co in S_CORNER_POS], 1)
@@ -838,21 +860,21 @@ class Camera:
         messageDisplay("Lvl " + str(self.user.xp_level),[120,20,230],[dw//2,dh-35])
 
         #player stats
-        if user.upgrade_points > 0 or pygame.key.get_pressed()[pygame.K_TAB]:
+        if self.user.upgrade_points > 0 or pygame.key.get_pressed()[pygame.K_TAB]:
             for c,rect in enumerate(PLAYER_STATS_RECTS):
-                pygame.draw.rect(screen,black,rect)
-                pygame.draw.rect(screen,[180]*3,rect,2)
+                pygame.draw.rect(screen,black,rect, border_radius=3)
+                pygame.draw.rect(screen,[180]*3,rect,2, border_radius=3)
                 for c_1 in range(self.user.tank_stats[c]): pygame.draw.rect(screen,[160,30,30],[rect[0]+5+25*c_1,rect[1]+5,20,20])
                 messageDisplay(str(TANK_STATS_NAMES[c]),white,rectCent(rect))
 
         #evolve previews
-        if user.evolve_upgrade_points > 0:
+        if self.user.evolve_upgrade_points > 0:
             tank_evolve_names = TANK_UPGRADE_TREE[self.user.tank_type] if self.user.tank_type in TANK_UPGRADE_TREE else []
             for c,name in enumerate(tank_evolve_names):
                 rect = PLAYER_EVOLVE_SQUARES[c]
                 cent = rectCent(rect)
-                pygame.draw.rect(screen,black,rect)
-                pygame.draw.rect(screen,[180]*3,rect,2)
+                pygame.draw.rect(screen,black,rect, border_radius=5)
+                pygame.draw.rect(screen,[180]*3,rect,2, border_radius=5)
                 preview_tank = PLAYER_EVOLVE_PREVIEWS[name]
                 preview_tank.pos = self.dToR(cent,override_zoom=TANK_PREVIEW_ZOOM[name])
                 preview_tank.orientation += PREVIEW_ROT_SPEED
@@ -894,15 +916,129 @@ class Camera:
         # pygame.draw.polygon(screen, black,[[2584.969205043709, 636.3562709380935], [2613.894647479603, 601.8842709977398], [2590.048280589109, 563.7221066707007], [2546.3849729066887, 574.6085919726856], [2543.2459315882033, 619.4989742343778]],3) THIS IS AN EXAMPLE OF THE BUG!!!!!!
         # pygame.draw.aalines(screen, red, False, [[2584.969205043709, 636.3562709380935], [2613.894647479603, 601.8842709977398], [2590.048280589109, 563.7221066707007], [2546.3849729066887, 574.6085919726856], [2543.2459315882033, 619.4989742343778], [2584.969205043709, 636.3562709380935]],3)
 
-         
-class Menu:
-    def __init__(self,game,user,camera):
-        self.game, self.user, self.camera = game, user, camera
-        game.menu = self
-    #FIXME implement menu system
 
 ##################################################################
-###                       GAME LOOP                            ###
+###                        MENU SETUP                          ###
+##################################################################
+
+
+    
+class MenuButton:
+    def __init__(self,rect,text,func,font=fancyFont,rounding=-1):
+        self.rect,self.text,self.func, self.font, self.rounding = rect,text,func,font, rounding
+        self.cent = rectCent(rect)
+    def inButton(self,m_co):
+        return inRect(m_co, self.rect)
+    def onPress(self):
+        if self.func != None: self.func()
+        return True
+    def draw(self, m_co):
+        selCol = [90]*3 if inRect(m_co,self.rect) else white
+        pygame.draw.rect(screen,selCol,self.rect, border_radius = self.rounding)
+        pygame.draw.rect(screen,black,self.rect,2, border_radius = self.rounding)
+        centText(self.text,self.cent, black,font=self.font)
+
+
+def pauseMenu():
+    menu_exit = False
+    screen.blit(pause_surface,[0,0])
+    while not menu_exit:
+        m_co = pygame.mouse.get_pos()
+        for ev in pygame.event.get():
+            if ev.type == pygame.QUIT: pygame.quit(); quit()
+            elif ev.type == pygame.MOUSEBUTTONDOWN:
+                if inRect(m_co,quit_button.rect):
+                    return True
+                if inRect(m_co,play_button.rect):
+                    return False
+
+        
+        play_button.draw(m_co)
+        quit_button.draw(m_co)
+        PDU()
+        
+        clock.tick(30)
+
+
+pause_surface = pygame.Surface([dw,dh],pygame.SRCALPHA,32)
+pause_surface.fill([0,0,0,128])
+
+def quit_func(): pygame.quit(); quit()
+quit_button = MenuButton([dw-45,10,30,30],"X", lambda:True )
+play_button = MenuButton([dw-45-40,10,30,30],"|>",lambda:True )
+pause_button = MenuButton([dw-45-40,10,30,30],"||",pauseMenu )
+start_button = MenuButton([dw//2-300,dh//2-60-200, 600, 120],"Start",lambda:True, big_font, 5)
+
+#VAPOUR SETUP
+
+
+ver_surface = pygame.Surface([dw,dh])
+ver_surface.fill(VER_LAND_COL)
+step = dw//10
+n = 0
+for x in range(-dw*20,dw*21,step):
+    if n%2 == 0:
+        pygame.draw.line(ver_surface,VER_LINE_COL,(x,dh+1),(dw//2,HORIZON_LINE))
+    n += 1
+pygame.draw.rect(ver_surface,VER_SKY_COL,[0,0,dw,HORIZON_LINE+15])
+
+class Menu:
+    def __init__(self):
+        self.phase = 1 #0 - intro menu phase | 1 - in game phase
+        self.in_game_buttons = [quit_button, pause_button]
+        self.menu_buttons = [quit_button, start_button]
+    def getCurrentButtons(self):
+        if self.phase == 0: return self.menu_buttons
+        elif self.phase == 1: return self.in_game_buttons
+    def onClick(self, m_co): #not used
+        for b in self.getCurrentButtons():
+            if b.inButton(m_co):
+                b.onPress()
+                return True
+        return False
+    def show(self, m_co):
+        for b in self.getCurrentButtons():
+            b.draw(m_co)
+    def setPhase(self,phase):
+        self.phase = phase
+    def mainMenu(self):
+        menu_exit = False
+        self.phase = 0
+        ticks = 0
+        while not menu_exit:
+            keys_pressed = pygame.key.get_pressed()
+            m_co = pygame.mouse.get_pos()
+            for ev in pygame.event.get():
+                if ev.type == pygame.QUIT: pygame.quit(); quit()
+
+                elif ev.type == pygame.MOUSEBUTTONDOWN:
+                    if ev.button == 1:
+                        if quit_button.inButton(m_co): pygame.quit(); quit()
+                        if start_button.inButton(m_co):
+                            self.phase = 1
+                            main_loop()
+                            self.phase = 0
+
+                elif ev.type == pygame.KEYDOWN:
+                    if ev.key in [pygame.K_LALT,pygame.K_RALT] and keys_pressed[pygame.K_F4]: pygame.quit(); quit()
+
+            screen.fill(VER_LAND_COL)
+            ### vapour wave render
+            screen.blit(ver_surface,(0,0))
+            z = 1-(ticks%30)/30
+            while z < 1000:
+                zP = 500/z+dh/2-15
+                pygame.draw.line(screen,VER_LINE_COL,(0,zP),(dw,zP))
+                z += 1
+            # pygame.draw.line(screen, red, [0,HORIZON_LINE+15], [dw,HORIZON_LINE+15])
+            pygame.draw.rect(screen,VER_SKY_COL,[0,0,dw,HORIZON_LINE+20])
+
+            self.show(m_co)
+            PDU()
+            clock.tick(30); ticks += 1
+
+##################################################################
+###                       GAME SETUP                           ###
 ##################################################################
 
 #setup food hubs
@@ -918,48 +1054,71 @@ for n in range(1,FOOD_HUB_N+1):
     food_hubs.append([try_pos, codes, radius])
     food_hubs_w_inds += [n]*freq
 
-#instansiate classes and vars
-ticks = 0
-collision_list = []
-
-chnkMngr = ChunkManager()
-game = Game(chnkMngr)
-camera = Camera(game)
-
-#set up player evolve previews
-PLAYER_EVOLVE_PREVIEWS = dict()
-for tank_name in ALL_TANK_NAMES: PLAYER_EVOLVE_PREVIEWS[tank_name] = Player(game, camera, [0,0], tank_name,preview=True)
-
-user = Player(game, camera, [MAP_CONSTANT//2, MAP_CONSTANT//2], "Basic", preview=False)
-
-user.addXP(1000000)
-for t in list(game.bots): t.addXP(randrange(0,500000))
 
 
+
+##################################################################
+###                       GAME LOOP                            ###
+##################################################################
 
 #main loop
-game_exit = False
-while not game_exit:
-    keys_pressed = pygame.key.get_pressed()
-    for ev in pygame.event.get():
-        if ev.type == pygame.QUIT: pygame.quit(); quit()
+def main_loop():
+    #instansiate classes and vars
+    ticks = 0
 
-        elif ev.type == pygame.MOUSEBUTTONDOWN:
-            if ev.button == 1: game.onClick(ev.pos)
-            elif ev.button in [4,5]: camera.onScroll(ev.button)
+    chnkMngr = ChunkManager()
+    game = Game(chnkMngr)
+    camera = Camera(game)
 
-        elif ev.type == pygame.KEYDOWN:
-            if ev.key in [pygame.K_LALT,pygame.K_RALT] and keys_pressed[pygame.K_F4]: pygame.quit(); quit()
-            else: user.onPress(ev.key)
+    #set up player evolve previews
+    global PLAYER_EVOLVE_PREVIEWS
+    PLAYER_EVOLVE_PREVIEWS = dict()
+    for tank_name in ALL_TANK_NAMES: PLAYER_EVOLVE_PREVIEWS[tank_name] = Player(game, camera, [0,0], tank_name,preview=True)
+
+    user = Player(game, camera, [MAP_CONSTANT//2, MAP_CONSTANT//2], "Basic", preview=False)
+
+    user.addXP(1000000)
+    user.pos = [0,0]
+    for t in list(game.bots): t.addXP(randrange(0,500000))
+
+    game_exit = False
+    while not game_exit and not user.isDead():
+        keys_pressed = pygame.key.get_pressed()
+        m_co = pygame.mouse.get_pos()
+        for ev in pygame.event.get():
+            if ev.type == pygame.QUIT: pygame.quit(); quit()
+
+            elif ev.type == pygame.MOUSEBUTTONDOWN:
+                if ev.button == 1: 
+                    if quit_button.inButton(m_co):
+                        game_exit = True
+                        continue
+                    elif pause_button.inButton(m_co):
+                        game_exit = pauseMenu()
+                        if game_exit: continue
+                    else:
+                        game.onClick(ev.pos)
+                elif ev.button in [4,5]: camera.onScroll(ev.button)
+
+            elif ev.type == pygame.KEYDOWN:
+                if ev.key in [pygame.K_LALT,pygame.K_RALT] and keys_pressed[pygame.K_F4]: pygame.quit(); quit()
+                else: user.onPress(ev.key)
 
 
-    user.onPressed(keys_pressed)
-    game.update(ticks)
+        user.onPressed(keys_pressed)
+        game.update(ticks)
 
-    fps = clock.get_fps()
-    camera.show(fps)
-    PDU()
+        fps = clock.get_fps()
+        camera.show(fps)
 
-    clock.tick(60); ticks += 1
+        menu.show(m_co)
+
+        PDU()
+
+        clock.tick(60); ticks += 1
+
+
+menu = Menu()
+menu.mainMenu()
 
 

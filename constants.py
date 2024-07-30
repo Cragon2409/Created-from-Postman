@@ -50,11 +50,12 @@ POLY_CODES = [DRW_FOOD, DRW_PROJ_FLW]
 SHP_TRIANGLE = 3
 SHP_SQUARE = 4
 SHP_PENTAGON = 5
+SHP_LARGE_PENTAGON = 6
 
-SHP_CODES = [SHP_TRIANGLE, SHP_SQUARE, SHP_PENTAGON]
+SHP_CODES = [SHP_TRIANGLE, SHP_SQUARE, SHP_PENTAGON, SHP_LARGE_PENTAGON]
 
 SHP_SIDES   = [0,0,0,3,4,5,5]
-SHP_SIZES   = [0,0,0,12,15,18,80]
+SHP_SIZES   = [0,0,0,12,15,18,20] ##change size back when optimization is fixed, and change the chunk size
 SHP_XP      = [0,0,0,20,10,100,10000]
 SHP_HEALTH  = [0,0,0,12,40,250, 10000]
 
@@ -69,13 +70,13 @@ FOOD_HUB_CHANCE    = 80 #out of 100
 
 FOOD_HUB_SEPERATION = 100
 FOOD_SPAWN_WEIGHT  = [3]*(10) + [4]*8 + [5]*1
-FOOD_HUB_CODES     = [[3],  [4],    [3,3,3,4],  [5],     [3,4,4,5],      [5]*30+[6]]
-FOOD_HUB_RADII     = [200,  150,    250,        150,     350,            400]
+FOOD_HUB_CODES     = [[3],  [4],    [3,3,3,4],  [5],     [3,4,4,5],      [5]*30+[6]*1] 
+FOOD_HUB_RADII     = [200,  150,    250,        150,     350,            400] 
 FOOD_HUB_FREQ      = [4,    4,      8,          2,        6,            1]
 FOOD_HUB_W_INDS    = []
 for n in range(len(FOOD_HUB_CODES)): FOOD_HUB_W_INDS += [n]*FOOD_HUB_FREQ[n]
 
-
+COL_TOLERANCE = 150
 
 WEIGHTED_FOOD_CODES = [5]*1 + [3]*4 + [4]*5
 
