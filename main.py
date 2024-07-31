@@ -533,7 +533,7 @@ class Bot(Tank):
         self.intro_func, self.upgrade_levels_func, self.evolve_path_func, self.update_func = BOT_AI_FUNCS["Basic Random"]
 
         # Initialise AI
-        self.intro_func(self)
+        self.intro_func(self,start_type)
         self.evolve_path = self.evolve_path_func()
         self.upgrade_point_path = self.upgrade_levels_func(self.evolve_path)
 
@@ -554,6 +554,7 @@ class Bot(Tank):
         while self.evolve_upgrade_points > 0:
             self.changeTankType(self.evolve_path[self.evolve_path.index(self.tank_type)+1])
             self.evolve_upgrade_points -= 1
+            self.intro_func(self, self.tank_type)
     def upgradeStat(self,stat_ind):
         if self.upgrade_points > 0:
             self.tank_stats[stat_ind] += 1

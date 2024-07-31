@@ -6,8 +6,10 @@ from constants import *
 
 """
 ============INTRO FUNC============
+Called when the bot is first made, and whenever the tank evolves into a new type.
 Given:
     - self : Bot(Tank)
+    - tank_type : String
 Outputs:
     - None
 Effects:
@@ -17,6 +19,7 @@ Effects:
 
     
 ============CHOOSE EVOLUTION PATH FUNC============
+Called when the bot is made, pre-decides the evolution path.
 Given:
     - starting_from="Basic" : String
 Outputs:
@@ -26,6 +29,7 @@ Effects:
 
     
 ============CHOOSE UPGRADE LEVELS FUNC============
+Called when the bot is made, pre-decides the stat upgrades that will be taken at each level.
 Given:
     - evolution_path : List(String)
 Outputs:
@@ -35,6 +39,7 @@ Effects:
 
 
 ============UPDATE FUNC============
+Called every frame, lets the bot decide what to do.
 Given:
     - self : Bot(Tank)
     - ticks: int
@@ -48,14 +53,14 @@ Effects:
 
 """
 
-
+#helper function to assign a position as a pathfinding target
 class DummyPosition: #dummy position object made for bot AI code
     DRAW_CODE = DRW_NONE
     def __init__(self,pos):
         self.pos = pos
 
 ###============== INTRO ==============###
-def basic_init(self):
+def basic_init(self,tank_type=None):
     self.auto_fire = False
     self.follow_move_code = 0
 
@@ -83,7 +88,7 @@ def random_levels(evolution_path):
 
 ###============== UPDATE FUNCS ==============###
 
-def nearest_target(self, ticks): 
+def attack_nearest_target(self, ticks): 
     """
     Basic agent - attacks nearest target, follows random upgrade path for stats and evolutions.
     """
@@ -127,5 +132,5 @@ def nearest_target(self, ticks):
 
 
 BOT_AI_FUNCS = { #intro func, choose upgrade levels, choose evolution path, update func
-    "Basic Random" : (basic_init, random_levels, random_path, nearest_target)
+    "Basic Random" : (basic_init, random_levels, random_path, attack_nearest_target)
 }
