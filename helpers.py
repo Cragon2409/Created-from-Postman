@@ -32,6 +32,7 @@ def dSM(s,d1): return [s*d1[0],s*d1[1]]
 def dM(d1,d2): return [d1[0]*d2[0],d1[1]*d2[1]]
 def dD(d1,d2): return [d1[0]/d2[0],d1[1]/d2[1]]
 def dInt(d): return [int(d[0]), int(d[1])]
+def dLimit(d,d_max,d_min): return [limit(d[n],d_max[n],d_min[n]) for n in range(2)]
 
 def nupleAdd(d1,d2,le=5): return [d1[n]+d2[n] for n in range(le)]
 

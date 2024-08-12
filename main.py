@@ -889,9 +889,10 @@ class Camera:
         #minimap
         pygame.draw.rect(screen,white,MINIMAP_POS + [110,110])
         pygame.draw.rect(screen,black,MINIMAP_POS + [110,110],2)
+        minimap_bR = dA(MINIMAP_POS,[108,108])
         for bots in self.game.bots: pygame.draw.circle(screen, bots.col, self.minimapTransform(bots.pos),3 )
         if self.game.user != None: pygame.draw.circle(screen,self.user.col,self.minimapTransform(self.user.pos),3)
-        pygame.draw.polygon(screen, yellow, [self.minimapTransform(self.dToR(co)) for co in S_CORNER_POS], 1)
+        pygame.draw.polygon(screen, black, [dLimit(self.minimapTransform(self.dToR(co)),minimap_bR,MINIMAP_POS) for co in S_CORNER_POS], 1)
 
         if self.player_mode != "Spectator":
             #xp bar
