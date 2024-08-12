@@ -98,6 +98,11 @@ def centText(inputText,center,colour=white,font=fancyFont):
     textRect.center = center
     screen.blit(textSurf,textRect)
 
+def transpRect(colour, rect, opacity):
+    surface = pygame.Surface(rect[2:], pygame.SRCALPHA, 32)
+    surface.fill(list(colour)+[opacity])
+    screen.blit(surface,rect[:2])
+
 PDU = pygame.display.update
 
 ##################################################################
@@ -583,11 +588,6 @@ class Bot(Tank):
         if right_rot > left_rot: self.ori_vel -= min([BOT_ROT_ACC_MAG,BOT_ROT_ACC_LIMITER*right_rot,BOT_ROT_ACC_LIMITER*left_rot])
         else: self.ori_vel += min([BOT_ROT_ACC_MAG,BOT_ROT_ACC_LIMITER*right_rot,BOT_ROT_ACC_LIMITER*left_rot])
 
-
-
-
-
-
     
 
 class Food(CollisionObject):
@@ -660,6 +660,13 @@ class Game:
 
         self.leaderboard = [] # [ [tank name, tank points, leaderboard num] || None , ... ]
 
+        if mode in ["Deathmatch", "Area Capture"]:
+            if teams == 0: self.spawn_fields = []
+            elif teams == 2: self.spawn_fields = [[-MAP_CONSTANT,-MAP_CONSTANT,SPAWN_FIELD_WIDTH, MAP_CONSTANT*2], [MAP_CONSTANT-SPAWN_FIELD_WIDTH, -MAP_CONSTANT, SPAWN_FIELD_WIDTH, MAP_CONSTANT*2]]
+            elif teams == 4: self.spawn_fields = [co + [SPAWN_FIELD_WIDTH]*2 for co in [[-MAP_CONSTANT,-MAP_CONSTANT],[MAP_CONSTANT-SPAWN_FIELD_WIDTH,-MAP_CONSTANT],[MAP_CONSTANT-SPAWN_FIELD_WIDTH,MAP_CONSTANT-SPAWN_FIELD_WIDTH],[-MAP_CONSTANT,MAP_CONSTANT-SPAWN_FIELD_WIDTH]]]
+        else:
+            self.spawn_fields = []
+
         self.food_amount = 0
         self.bots_amount = 0
         for _ in range(STATIC_FOOD_NUM): self.generate_food()
@@ -716,7 +723,7 @@ class Game:
         return [randrange(-MAP_CONSTANT+border, MAP_CONSTANT-border), randrange(-MAP_CONSTANT+border, MAP_CONSTANT-border)]
     def generate_food(self):
         tries = 0
-        while ((tries == 0) or (not inRect(new_food.pos, MAP_RECT)) or (new_food.checkCollisions())) and tries < 100:
+        while ((tries == 0) or (not inRect(new_food.pos, MAP_RECT)) or (new_food.checkCollisions()) or any([inRect(new_food.pos,rect) for rect in self.spawn_fields])) and tries < 100:
             if tries != 0: new_food.colKill()
             if randrange(0,100) < FOOD_HUB_CHANCE:
                 hub = food_hubs[choice(food_hubs_w_inds)]
@@ -731,7 +738,10 @@ class Game:
         else:
             return False
     def generate_bot(self,team=TEAM_NULL):
-        new_bot = Bot(self, self.randomPos(), "Basic", team)
+        try_pos = self.randomPos() if team == TEAM_NULL else randomInRect(self.spawn_fields[team])
+        while not circleInRect(try_pos, MAP_RECT, MAX_TANK_RADIUS): try_pos = self.randomPos() if team == TEAM_NULL else randomInRect(self.spawn_fields[team])
+
+        new_bot = Bot(self, try_pos, "Basic", team)
         self.bots.add(new_bot)
         self.bots_amount += 1
     def onClick(self,m_co):
@@ -769,7 +779,8 @@ class Game:
 
 
 class Camera:
-    minimapTransform = lambda self,co : dInt(dA(dSM(104,[ (i+MAP_CONSTANT)/(MAP_CONSTANT*2) for i in co ]),[3+MINIMAP_POS[0],3+MINIMAP_POS[1]]))
+    minimapTransformTight   = lambda self,co : dInt(dA(dSM(110,[ (i+MAP_CONSTANT)/(MAP_CONSTANT*2) for i in co ]),[MINIMAP_POS[0],MINIMAP_POS[1]]))
+    minimapTransform        = lambda self,co : dInt(dA(dSM(104,[ (i+MAP_CONSTANT)/(MAP_CONSTANT*2) for i in co ]),[3+MINIMAP_POS[0],3+MINIMAP_POS[1]]))
     def __init__(self, game, player_mode):
         self.game = game
         self.game.camera = self
@@ -863,6 +874,13 @@ class Camera:
         if 0 <= yT <= dh: pygame.draw.rect(screen,BORDER_COLOUR,[0,yT,dw,dh-yT])
         xT = MAP_CONSTANT*self.zoom + self.offset[0]
         if 0 <= xT <= dw: pygame.draw.rect(screen,BORDER_COLOUR,[xT,0,dw-xT,dh])
+    def showAreas(self):
+        for c,rect in enumerate(self.game.spawn_fields):
+            conv_rect = self.rToD(rect[:2]) + dSM(self.zoom, rect[2:])
+            rect_points = [dLimit(co,[dw,dh],[0,0]) for co in rectPoints(conv_rect)]
+            tL, bR = dMin(rect_points), dMax(rect_points)
+            
+            if rectOverlapRect(S_RECT, conv_rect): transpRect(TEAM_COLOURS[c], tL+dS(bR,tL), SPAWN_FIELD_OPACITY)
     def showCircle(self,pos,colour,radius,outline=0,outline_colour=None,override_zoom=None):
         zoom = override_zoom if override_zoom != None else self.zoom
         centre_d_pos = [int(round(i)) for i in self.rToD(pos,zoom)]
@@ -888,6 +906,7 @@ class Camera:
     def showOverlay(self,fps=0):
         #minimap
         pygame.draw.rect(screen,white,MINIMAP_POS + [110,110])
+        for c,rect in enumerate(self.game.spawn_fields): pygame.draw.rect(screen, TEAM_MINIMAP_COLS[c], self.minimapTransformTight(rect[:2])+dSM(110/(MAP_CONSTANT*2),rect[2:]))
         pygame.draw.rect(screen,black,MINIMAP_POS + [110,110],2)
         minimap_bR = dA(MINIMAP_POS,[108,108])
         for bots in self.game.bots: pygame.draw.circle(screen, bots.col, self.minimapTransform(bots.pos),3 )
@@ -951,6 +970,8 @@ class Camera:
         for valid_draw_codes in DRW_ORDER:
             for obj in nearby_objs:
                 if obj.DRAW_CODE in valid_draw_codes: self.renderObj(obj)
+
+        self.showAreas()
 
         self.showOverlay(fps)
         
@@ -1179,7 +1200,8 @@ def main_loop(game_type = "Deathmatch", player_mode = "Spectator", game_teams = 
 
     #set up user based on player mode, and set camera target
     if player_mode in ["Player","Pro","God"]:
-        user = Player(game, camera, [MAP_CONSTANT//2, MAP_CONSTANT//2], "Basic", TEAM_NULL if game_teams == 0 else randrange(0,game_teams), preview=False)
+        user_team = TEAM_NULL if game_teams == 0 else randrange(0,game_teams)
+        user = Player(game, camera, game.randomPos() if user_team == TEAM_NULL else randomInRect(game.spawn_fields[user_team]), "Basic", user_team, preview=False)
         if player_mode in ["Pro", "God"]: user.addXP(10000000)
         if player_mode == "God": user.upgrade_points += (MAX_TANK_UPGRADE*TANK_STATS_LEN - MAX_LEVEL)
         camera.setTarget(user)

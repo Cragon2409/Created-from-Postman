@@ -33,6 +33,8 @@ def dM(d1,d2): return [d1[0]*d2[0],d1[1]*d2[1]]
 def dD(d1,d2): return [d1[0]/d2[0],d1[1]/d2[1]]
 def dInt(d): return [int(d[0]), int(d[1])]
 def dLimit(d,d_max,d_min): return [limit(d[n],d_max[n],d_min[n]) for n in range(2)]
+def dMin(d_list): return [min([d[c] for d in d_list]) for c in range(2)]
+def dMax(d_list): return [max([d[c] for d in d_list]) for c in range(2)]
 
 def nupleAdd(d1,d2,le=5): return [d1[n]+d2[n] for n in range(le)]
 
@@ -171,6 +173,7 @@ def polyArea(n,s):#returns area
     return (n*s**2) / (4 * math.tan(PI/n))
 
 def rectCent(rect): return dA(rect[:2],dSM(0.5,rect[2:]))
+def rectPoints(rect): return [rect[:2], dA(rect[:2], [rect[2],0]), dA(rect[:2], rect[2:]), dA(rect[:2], [0,rect[3]])]
 
 
 def dRConv(r): return r* (PI/180)
@@ -229,6 +232,9 @@ def circleInPoly(c_co,c_radius,true_polygon, col_polygon, centre, radius, rad_of
         towards_co = dA(c_co, vecSub(dS(centre,c_co),use_dist))
         return pointInPoly(towards_co, col_polygon, centre, radius, rad_offset) or pointInPoly(c_co, col_polygon, centre, radius, rad_offset)
     
+def rectOverlapRect(rect_1, rect_2): return any([inRect(co,rect_1) for co in rectPoints(rect_2)]) or any([inRect(co,rect_2) for co in rectPoints(rect_1)]) or any([rect_1[c+0] < rect_2[c+0] and rect_1[c+0]+rect_1[c+2] > rect_2[c+0]+rect_2[c+2] for c in range(2)])
+
+
 WORD_LIST_1 = ["Cheese","Diamond","Fortnite","Roblox","Women","Men","Bannana","Pizza","Water",""]
 CONNECTIVE_LIST = ['','','-','_']
 WORD_LIST_2 = ["Lover","Hater","Haver","Player","Wanter","Pro","Expert","User","Consumer","Enjoyer", "God"]

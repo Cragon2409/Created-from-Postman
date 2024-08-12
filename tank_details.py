@@ -40,6 +40,7 @@ TANK_STATS = { #max at 5
     "Boxer"         : [5,3,4,5,     0,0,0,0,        20,0,3]
 }
 
+MAX_TANK_RADIUS = 20
 
 ALL_TANK_NAMES = list(TANK_STATS)
 TANK_PREVIEW_ZOOM = {

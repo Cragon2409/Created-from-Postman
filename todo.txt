@@ -1,2 +1,5 @@
 #optimise collision to break early on any statements
-#set up observer gamemode to watch ai
+#check food/bot/player spawn placement to not collide
+#implement capture the area gamemode
+#implement rogue gamemode
+#add deflection collision for team mates on the same team
