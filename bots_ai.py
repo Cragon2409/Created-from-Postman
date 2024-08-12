@@ -58,6 +58,7 @@ class DummyPosition: #dummy position object made for bot AI code
     DRAW_CODE = DRW_NONE
     def __init__(self,pos):
         self.pos = pos
+        self.vel = [0,0]
 
 ###============== INTRO ==============###
 def basic_init(self,tank_type=None):
@@ -94,7 +95,7 @@ def attack_nearest_target(self, ticks):
     """
     # Pick target
     if ticks % 30 == 0: #FIXME report when target dies and remove reference
-        nearby_ents = list(filter(lambda x: x != self and (x.DRAW_CODE in [DRW_FOOD, DRW_TANK_BOT, DRW_TANK_PLR]), self.game.chunkManager.getInRect(dA(self.pos, BOT_VIEW_RECT[:2]), dS(self.pos, BOT_VIEW_RECT[:2]))))
+        nearby_ents = list(filter(lambda x: x != self and (x.DRAW_CODE in [DRW_FOOD, DRW_TANK_BOT, DRW_TANK_PLR]) and ( (not x.DRAW_CODE in TANK_CODES) or x.team == TEAM_NULL or x.team != self.team), self.game.chunkManager.getInRect(dA(self.pos, BOT_VIEW_RECT[:2]), dS(self.pos, BOT_VIEW_RECT[:2]))))
         if nearby_ents != []: self.target = min(nearby_ents, key = lambda x : coDistance(x.pos, self.pos))
         elif self.target.DRAW_CODE != DRW_NONE or coDistance(self.pos, self.target.pos) < self.chase_distance: self.target = DummyPosition(self.game.randomPos())
 

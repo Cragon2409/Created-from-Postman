@@ -54,6 +54,7 @@ MESSAGE_LOG_POS = [dw-400,dh-50]
 LEADERBOARD_POS = [dw-350,450]
 
 PLAYER_STATS_RECTS = [[10,dh-TANK_STATS_LEN*32+n*32,205,30] for n in range(TANK_STATS_LEN)]
+PLAYER_STATS_POINTS_POS = dA(PLAYER_STATS_RECTS[0], [3,-30])
 
 MINIMAP_POS = [dw-120, 50]
 
@@ -176,7 +177,7 @@ class CollisionObject:
         return nearby
     def checkCollisions(self):
         for col_obj in self.getNearbyEntities():
-            if (not (self.DRAW_CODE == DRW_PROJ_BLT and col_obj.DRAW_CODE == DRW_PROJ_BLT and self.owner == col_obj.owner)) and self.collide(col_obj):
+            if (not (self.DRAW_CODE == DRW_PROJ_BLT and col_obj.DRAW_CODE == DRW_PROJ_BLT and self.owner == col_obj.owner)) and ([col_obj.DRAW_CODE, self.DRAW_CODE] == [DRW_PROJ_FLW, DRW_PROJ_FLW] or TEAM_NULL in [self.team, col_obj.team] or self.team != col_obj.team) and self.collide(col_obj):
                 if self.hitBy(col_obj): return True
         return False
     def collide(self, col_obj):
@@ -227,6 +228,7 @@ class Turret:
 class Projectile(CollisionObject):
     def __init__(self,start_vel,start_pos,size,owner):
         self.owner = owner
+        self.team = self.owner.team
         self.vel = start_vel 
         self.pos = start_pos
         self.health = owner.bullet_endur
@@ -372,6 +374,7 @@ class Tank(CollisionObject):
         
         self.pos = start_pos
         self.orientation = 0
+        self.ori_vel = 0
         self.vel = [0,0]
         super().__init__(game)
     def shoot(self):
@@ -419,8 +422,6 @@ class Tank(CollisionObject):
         if self.DRAW_CODE == DRW_TANK_PLR: 
             ZOOM_RANGE[0] = stats[10]
             self.game.camera.zoom = limit(self.game.camera.zoom, ZOOM_RANGE[1], ZOOM_RANGE[0])
-    def faceTowards(self,r_co):
-        self.orientation = twoCoAngle(self.pos, r_co)   
     def accelerate(self,di): #assumes normalised direction
         self.vel = dA(self.vel,dSM(self.move_speed,di))
     def hitBy(self,col_obj):
@@ -471,6 +472,12 @@ class Tank(CollisionObject):
         if self.regen_timer == 0:
             self.regen_timer = self.regen_ticks
             self.health = min(self.health+1,self.max_health)
+
+        #update rot for bots
+        self.orientation += self.ori_vel
+        self.ori_vel *= BOT_ROT_DRAG
+        if self.ori_vel < BOT_ROT_VEL_TOLERANCE: self.ori_vel = 0
+
         
         return False #dont delete bots!
     
@@ -478,9 +485,10 @@ class Tank(CollisionObject):
 class Player(Tank):
     DRAW_CODE = DRW_TANK_PLR
     name = PLAYER_NAME
-    col = [20,170,90]
-    def __init__(self, game, camera, start_pos, start_type,preview=False):
+    def __init__(self, game, camera, start_pos, start_type, team=TEAM_NULL, preview=False):
         self.preview = preview
+        self.team = team
+        self.col = PLAYER_COL if team == TEAM_NULL else TEAM_COLOURS[team]
         self.camera = camera
         self.camera.user = self
         self.dead = False
@@ -518,25 +526,28 @@ class Player(Tank):
             return m_r_pos, 0
         else: #hover mode
             return dA(self.pos, vecSub(dS(m_r_pos, self.pos), self.radius*4 + self.current_followers*0.5)), 0
+    def faceTowards(self,r_co):
+        self.orientation = twoCoAngle(self.pos, r_co)   
 
 class Bot(Tank):
     DRAW_CODE = DRW_TANK_BOT
     preview = False
-    col = [190,40,30]
     chase_distance = 100
-    def __init__(self, game, start_pos, start_type):
+    def __init__(self, game, start_pos, start_type, team=TEAM_NULL):
         super().__init__(game, start_pos, start_type)
         self.name = genUsername()  
+        self.col = BOT_COL if team == TEAM_NULL else TEAM_COLOURS[team]
+        self.team = team
         self.target = DummyPosition(self.game.randomPos())
         self.follower_move_code = 0
         self.follower_move_pos = self.pos
         self.intro_func, self.upgrade_levels_func, self.evolve_path_func, self.update_func = BOT_AI_FUNCS["Basic Random"]
+        self.ori_vel = 0
 
         # Initialise AI
         self.intro_func(self,start_type)
         self.evolve_path = self.evolve_path_func()
         self.upgrade_point_path = self.upgrade_levels_func(self.evolve_path)
-
     def kill(self):
         self.game.killBot(self)  
     def getFollowerInfo(self):
@@ -562,6 +573,19 @@ class Bot(Tank):
             self.assignStats()
             return True
         return False
+    def faceTowards(self,r_co):
+
+        t = twoCoAngle(self.pos, r_co)
+        p = self.orientation
+        right_rot = (t-p)%(2*pi)
+        left_rot = (p-t)%(2*pi)
+
+        if right_rot > left_rot: self.ori_vel -= min([BOT_ROT_ACC_MAG,BOT_ROT_ACC_LIMITER*right_rot,BOT_ROT_ACC_LIMITER*left_rot])
+        else: self.ori_vel += min([BOT_ROT_ACC_MAG,BOT_ROT_ACC_LIMITER*right_rot,BOT_ROT_ACC_LIMITER*left_rot])
+
+
+
+
 
 
     
@@ -569,6 +593,7 @@ class Bot(Tank):
 class Food(CollisionObject):
     DRAW_CODE = DRW_FOOD
     name = "Food"
+    team = TEAM_NULL
     density = DNSTY_FOOD
     def __init__(self,game,food_code, start_pos):
         self.sides = SHP_SIDES[food_code]
@@ -624,27 +649,35 @@ class Food(CollisionObject):
 
 ### Game Object
 class Game:
-    def __init__(self,chunkManager):
+    def __init__(self,chunkManager,mode="Deathmatch",teams=0):
         self.foods = set()
         self.bots = set()
         
         self.chunkManager = chunkManager
         chunkManager.game = self
+        self.mode = mode
+        self.teams = teams
 
         self.leaderboard = [] # [ [tank name, tank points, leaderboard num] || None , ... ]
 
         self.food_amount = 0
         self.bots_amount = 0
         for _ in range(STATIC_FOOD_NUM): self.generate_food()
-        for _ in range(STATIC_BOTS_NUM): self.generate_bot()
+        if teams == 0:
+            for _ in range(STATIC_BOTS_NUM): self.generate_bot(team=TEAM_NULL)
+        else:
+            for t in range(teams):
+                for _ in range(STATIC_BOTS_NUM//teams): self.generate_bot(team=t)
+
         self.message_log = [["Welcome to the game!", black, 180]]#[ [msg_string, col, ticks], ...]
     def update(self,ticks):
         self.chunkManager.runCollisions() #update collisions
 
         #update user
-        mCo = pygame.mouse.get_pos()
-        self.user.faceTowards(self.camera.dToR(mCo))
-        self.user.update()
+        if self.user != None:
+            mCo = pygame.mouse.get_pos()
+            self.user.faceTowards(self.camera.dToR(mCo))
+            self.user.update()
 
         #update bots and food
         for f in [f for f in self.foods if f.update()][::-1]: self.killFood(f)
@@ -673,7 +706,7 @@ class Game:
         del f
     def killBot(self,b):
         self.bots_amount -= 1
-        self.generate_bot()
+        self.generate_bot(b.team)
 
         for pr in list(b.projs)[:]: b.killProj(pr)
         b.colKill()
@@ -697,37 +730,38 @@ class Game:
             return True
         else:
             return False
-    def generate_bot(self):
-        new_bot = Bot(self, self.randomPos(), "Basic")
+    def generate_bot(self,team=TEAM_NULL):
+        new_bot = Bot(self, self.randomPos(), "Basic", team)
         self.bots.add(new_bot)
         self.bots_amount += 1
     def onClick(self,m_co):
-        button_clicked = False
-        if self.user.upgrade_points > 0:
-            for c,rect in enumerate(PLAYER_STATS_RECTS):
-                if inRect(m_co,rect):
-                    button_clicked = True
-                    if self.user.tank_stats[c] < MAX_TANK_UPGRADE:
-                        self.user.tank_stats[c] += 1
-                        self.user.upgrade_points -= 1
-                        self.user.assignStats()
-        if not button_clicked and self.user.evolve_upgrade_points > 0:
-            tank_evolve_names = TANK_UPGRADE_TREE[self.user.tank_type] if self.user.tank_type in TANK_UPGRADE_TREE else []
-            for c,name in enumerate(tank_evolve_names):
-                rect = PLAYER_EVOLVE_SQUARES[c]
-                if inRect(m_co,rect):
-                    button_clicked = True
-                    self.user.evolve_upgrade_points -= 1
-                    self.user.changeTankType(name)
+        if self.user != None:
+            button_clicked = False
+            if self.user.upgrade_points > 0:
+                for c,rect in enumerate(PLAYER_STATS_RECTS):
+                    if inRect(m_co,rect):
+                        button_clicked = True
+                        if self.user.tank_stats[c] < MAX_TANK_UPGRADE:
+                            self.user.tank_stats[c] += 1
+                            self.user.upgrade_points -= 1
+                            self.user.assignStats()
+            if not button_clicked and self.user.evolve_upgrade_points > 0:
+                tank_evolve_names = TANK_UPGRADE_TREE[self.user.tank_type] if self.user.tank_type in TANK_UPGRADE_TREE else []
+                for c,name in enumerate(tank_evolve_names):
+                    rect = PLAYER_EVOLVE_SQUARES[c]
+                    if inRect(m_co,rect):
+                        button_clicked = True
+                        self.user.evolve_upgrade_points -= 1
+                        self.user.changeTankType(name)
 
-        if not button_clicked: self.user.onClick(m_co)
+            if not button_clicked: self.user.onClick(m_co)
     def addMessage(self,txt,col,duration):
         self.message_log.append([txt,col,duration])
     def genLeaderboard(self):
-        sorted_tanks = sorted(list(self.bots)+[self.user], key=lambda t : -t.xp_points_total)
+        sorted_tanks = sorted(list(self.bots)+([self.user] if self.user != None else []), key=lambda t : -t.xp_points_total)
         sorted_len = len(sorted_tanks)
-        player_rank = sorted_tanks.index(self.user) + 1
-        if player_rank <= LEADERBOARD_LEN: self.leaderboard = [[sorted_tanks[c].name, int(sorted_tanks[c].xp_points_total), c+1] for c in range(LEADERBOARD_LEN)]
+        if self.user != None: player_rank = sorted_tanks.index(self.user) + 1
+        if self.user == None or player_rank <= LEADERBOARD_LEN: self.leaderboard = [[sorted_tanks[c].name, int(sorted_tanks[c].xp_points_total), c+1] for c in range(LEADERBOARD_LEN)]
         elif player_rank+2 >= sorted_len: self.leaderboard = [[sorted_tanks[c].name, int(sorted_tanks[c].xp_points_total), c+1] for c in range(LEADERBOARD_LEN - 4)] + [None] + [[sorted_tanks[c].name, int(sorted_tanks[c].xp_points_total), c+1] for c in range(sorted_len-4,sorted_len)]
         else: self.leaderboard = [[sorted_tanks[c].name, int(sorted_tanks[c].xp_points_total), c+1] for c in range(LEADERBOARD_LEN - 4)] + [None] + [[sorted_tanks[c].name, int(sorted_tanks[c].xp_points_total), c+1] for c in range(player_rank-2,player_rank+1)]
         self.leaderboard = self.leaderboard[::-1]
@@ -736,11 +770,13 @@ class Game:
 
 class Camera:
     minimapTransform = lambda self,co : dInt(dA(dSM(104,[ (i+MAP_CONSTANT)/(MAP_CONSTANT*2) for i in co ]),[3+MINIMAP_POS[0],3+MINIMAP_POS[1]]))
-    def __init__(self, game):
+    def __init__(self, game, player_mode):
         self.game = game
         self.game.camera = self
+        self.player_mode = player_mode
         self.zoom = 5
         self.offset = [0,0]
+        self.target = None#needs to be instanstiated by other objects
     def onScroll(self,button):
         r_co = self.dToR(S_CENT)
         self.zoom *= ZOOM_STRENGTH if button == 4 else (1/ZOOM_STRENGTH)
@@ -754,6 +790,8 @@ class Camera:
         return [(i-self.offset[c])/zoom for c,i in enumerate(d_co)]
     def watchAt(self, r_co, d_co):
         self.offset = [d_co[c] - self.zoom*r_co[c] for c in range(2)]
+    def setTarget(self, t):
+        self.target = t
     def renderObj(self,obj,override_zoom=None):
         zoom = override_zoom if override_zoom != None else self.zoom
         obj_type = obj.DRAW_CODE
@@ -844,7 +882,7 @@ class Camera:
             #pygame.draw.aalines(screen,colour, True, poly_d_pos)
             if outline > 0:
                 pygame.draw.aalines(screen,outline_colour, True, poly_d_pos)
-                #pygame.draw.polygon(screen,outline_colour,poly_d_pos,outline) #FUCKING BUG IM LEAVING THIS COMMENT IN THIS WAS SO FCKNG ANNOYING TO FIX
+                #pygame.draw.polygon(screen,outline_colour,poly_d_pos,outline) #FUCKING BUG IM LEAVING THIS COMMENT IN THIS WAS SO FCKNG ANNOYING TO FIX FIXME
             return True
         return False   
     def showOverlay(self,fps=0):
@@ -852,37 +890,39 @@ class Camera:
         pygame.draw.rect(screen,white,MINIMAP_POS + [110,110])
         pygame.draw.rect(screen,black,MINIMAP_POS + [110,110],2)
         for bots in self.game.bots: pygame.draw.circle(screen, bots.col, self.minimapTransform(bots.pos),3 )
-        pygame.draw.circle(screen,self.user.col,self.minimapTransform(self.user.pos),3)
+        if self.game.user != None: pygame.draw.circle(screen,self.user.col,self.minimapTransform(self.user.pos),3)
         pygame.draw.polygon(screen, yellow, [self.minimapTransform(self.dToR(co)) for co in S_CORNER_POS], 1)
 
-        #xp bar
-        pygame.draw.rect(screen,black,[XPB_POS,dh-50,XPB_LENGTH,30])
-        pygame.draw.rect(screen,yellow,[XPB_POS+2,dh-48,(XPB_LENGTH-4)*min(self.user.xp_points/self.user.xp_points_needed,1),26])
-        messageDisplay("Lvl " + str(self.user.xp_level),[120,20,230],[dw//2,dh-35])
+        if self.player_mode != "Spectator":
+            #xp bar
+            pygame.draw.rect(screen,black,[XPB_POS,dh-50,XPB_LENGTH,30])
+            pygame.draw.rect(screen,yellow,[XPB_POS+2,dh-48,(XPB_LENGTH-4)*min(self.user.xp_points/self.user.xp_points_needed,1),26])
+            messageDisplay("Lvl " + str(self.user.xp_level),[120,20,230],[dw//2,dh-35])
 
-        #player stats
-        if self.user.upgrade_points > 0 or pygame.key.get_pressed()[pygame.K_TAB]:
-            for c,rect in enumerate(PLAYER_STATS_RECTS):
-                pygame.draw.rect(screen,black,rect, border_radius=3)
-                pygame.draw.rect(screen,[180]*3,rect,2, border_radius=3)
-                for c_1 in range(self.user.tank_stats[c]): pygame.draw.rect(screen,[160,30,30],[rect[0]+5+25*c_1,rect[1]+5,20,20])
-                messageDisplay(str(TANK_STATS_NAMES[c]),white,rectCent(rect))
+            #player stats
+            if self.user.upgrade_points > 0 or pygame.key.get_pressed()[pygame.K_TAB]:
+                if self.user.upgrade_points > 0: simpleText("Points: " + str(self.user.upgrade_points), PLAYER_STATS_POINTS_POS, colour=black)
+                for c,rect in enumerate(PLAYER_STATS_RECTS):
+                    pygame.draw.rect(screen,black,rect, border_radius=3)
+                    pygame.draw.rect(screen,[180]*3,rect,2, border_radius=3)
+                    for c_1 in range(self.user.tank_stats[c]): pygame.draw.rect(screen,[160,30,30],[rect[0]+5+25*c_1,rect[1]+5,20,20])
+                    messageDisplay(str(TANK_STATS_NAMES[c]),white,rectCent(rect))
 
-        #evolve previews
-        if self.user.evolve_upgrade_points > 0:
-            tank_evolve_names = TANK_UPGRADE_TREE[self.user.tank_type] if self.user.tank_type in TANK_UPGRADE_TREE else []
-            for c,name in enumerate(tank_evolve_names):
-                rect = PLAYER_EVOLVE_SQUARES[c]
-                cent = rectCent(rect)
-                pygame.draw.rect(screen,black,rect, border_radius=5)
-                pygame.draw.rect(screen,[180]*3,rect,2, border_radius=5)
-                preview_tank = PLAYER_EVOLVE_PREVIEWS[name]
-                preview_tank.pos = self.dToR(cent,override_zoom=TANK_PREVIEW_ZOOM[name])
-                preview_tank.orientation += PREVIEW_ROT_SPEED
+            #evolve previews
+            if self.user.evolve_upgrade_points > 0:
+                tank_evolve_names = TANK_UPGRADE_TREE[self.user.tank_type] if self.user.tank_type in TANK_UPGRADE_TREE else []
+                for c,name in enumerate(tank_evolve_names):
+                    rect = PLAYER_EVOLVE_SQUARES[c]
+                    cent = rectCent(rect)
+                    pygame.draw.rect(screen,black,rect, border_radius=5)
+                    pygame.draw.rect(screen,[180]*3,rect,2, border_radius=5)
+                    preview_tank = PLAYER_EVOLVE_PREVIEWS[name]
+                    preview_tank.pos = self.dToR(cent,override_zoom=TANK_PREVIEW_ZOOM[name])
+                    preview_tank.orientation += PREVIEW_ROT_SPEED
 
-                self.renderObj(preview_tank,override_zoom=TANK_PREVIEW_ZOOM[name])
+                    self.renderObj(preview_tank,override_zoom=TANK_PREVIEW_ZOOM[name])
 
-                messageDisplay(name,white,dA(rectCent(rect),[0,-rect[3]//3]))
+                    messageDisplay(name,white,dA(rectCent(rect),[0,-rect[3]//3]))
         
         #show message log
         msgs = len(self.game.message_log)
@@ -901,7 +941,8 @@ class Camera:
         #fps
         simpleText("FPS: " + str(round(fps,2)),(dw-260,10),red)
     def show(self,fps=0):
-        self.watchAt(self.user.pos, S_CENT)
+
+        self.watchAt(self.target.pos, S_CENT)
         screen.fill(white)
         self.showGrid()
 
@@ -960,7 +1001,6 @@ def pauseMenu():
         
         clock.tick(30)
 
-
 pause_surface = pygame.Surface([dw,dh],pygame.SRCALPHA,32)
 pause_surface.fill([0,0,0,128])
 
@@ -968,10 +1008,18 @@ def quit_func(): pygame.quit(); quit()
 quit_button = MenuButton([dw-45,10,30,30],"X", lambda:True )
 play_button = MenuButton([dw-45-40,10,30,30],"|>",lambda:True )
 pause_button = MenuButton([dw-45-40,10,30,30],"||",pauseMenu )
-start_button = MenuButton([dw//2-300,dh//2-60-200, 600, 120],"Start",lambda:True, big_font, 5)
+start_button = MenuButton([dw//2-300,dh//2-60-250, 600, 120],"Start",lambda:True, big_font, 5)
+
+option_rects = [[dw//2 - 100, dh//2-150+50*c, 200, 40] for c in range(3)]
+option_cents = [rectCent(rect) for rect in option_rects]
+
+left_option_rects = [dA(option_rects[c][:2],[-50,0]) + [40,40] for c in range(3)]
+left_option_cents = [rectCent(rect) for rect in left_option_rects]
+
+right_option_rects = [dA(option_rects[c][:2],[210,0]) + [40,40] for c in range(3)]
+right_option_cents = [rectCent(rect) for rect in right_option_rects]
 
 #VAPOUR SETUP
-
 
 ver_surface = pygame.Surface([dw,dh])
 ver_surface.fill(VER_LAND_COL)
@@ -988,18 +1036,20 @@ class Menu:
         self.phase = 1 #0 - intro menu phase | 1 - in game phase
         self.in_game_buttons = [quit_button, pause_button]
         self.menu_buttons = [quit_button, start_button]
+
+        self.mode_options = ["Deathmatch", "Area Capture", "Rogue"]
+        self.type_options = ["Player", "Spectator", "Pro", "God"]
+        self.team_options = ["0","2","4"]
+
+        self.option_inds = [0,0,0]
+        self.option_strings = [self.mode_options, self.type_options, self.team_options]
     def getCurrentButtons(self):
         if self.phase == 0: return self.menu_buttons
         elif self.phase == 1: return self.in_game_buttons
-    def onClick(self, m_co): #not used
-        for b in self.getCurrentButtons():
-            if b.inButton(m_co):
-                b.onPress()
-                return True
-        return False
     def show(self, m_co):
         for b in self.getCurrentButtons():
             b.draw(m_co)
+
     def setPhase(self,phase):
         self.phase = phase
     def mainMenu(self):
@@ -1009,16 +1059,33 @@ class Menu:
         while not menu_exit:
             keys_pressed = pygame.key.get_pressed()
             m_co = pygame.mouse.get_pos()
+            options = [self.option_strings[c][self.option_inds[c]] for c in range(3)]
             for ev in pygame.event.get():
                 if ev.type == pygame.QUIT: pygame.quit(); quit()
 
                 elif ev.type == pygame.MOUSEBUTTONDOWN:
                     if ev.button == 1:
                         if quit_button.inButton(m_co): pygame.quit(); quit()
-                        if start_button.inButton(m_co):
+                        elif start_button.inButton(m_co):
                             self.phase = 1
-                            main_loop()
+                            main_loop(*options)
                             self.phase = 0
+                        else:
+                            for c in range(3):
+                                if inRect(m_co, left_option_rects[c]): 
+                                    self.option_inds[c] = (self.option_inds[c]-1)%(len(self.option_strings[c]))
+                                    if c == 0:
+                                        if self.option_inds[0] == 2: self.team_options = ["0"]; self.option_inds[2] = 0 #Rogue
+                                        elif self.option_inds[0] == 1:  self.team_options = ["2","4"]; self.option_inds[2] = (self.option_inds[2]+1)%2 #Area Capture
+                                        else: self.team_options = ["0","2","4"] #TDM
+                                        self.option_strings[2] = self.team_options
+                                elif inRect(m_co, right_option_rects[c]): 
+                                    self.option_inds[c] = (self.option_inds[c]+1)%(len(self.option_strings[c]))
+                                    if c == 0:
+                                        if self.option_inds[0] == 2: self.team_options = ["0"]; self.option_inds[2] = 0 #Rogue
+                                        elif self.option_inds[0] == 1:  self.team_options = ["2","4"]; self.option_inds[2] = (self.option_inds[2]+1)%2 #Area Capture
+                                        else: self.team_options = ["0","2","4"] #TDM
+                                        self.option_strings[2] = self.team_options
 
                 elif ev.type == pygame.KEYDOWN:
                     if ev.key in [pygame.K_LALT,pygame.K_RALT] and keys_pressed[pygame.K_F4]: pygame.quit(); quit()
@@ -1035,6 +1102,20 @@ class Menu:
             pygame.draw.rect(screen,VER_SKY_COL,[0,0,dw,HORIZON_LINE+20])
 
             self.show(m_co)
+
+            for c,option in enumerate(options):
+                pygame.draw.rect(screen, [100,100,100], option_rects[c], border_radius=5)
+                pygame.draw.rect(screen, [130,130,130], option_rects[c], 2, border_radius=5)
+                centText(option, option_cents[c], colour=black)
+
+                pygame.draw.rect(screen, [100,100,100], left_option_rects[c], border_radius=5)
+                pygame.draw.rect(screen, [130,130,130] if inRect(m_co, left_option_rects[c]) else [70,70,70], left_option_rects[c], border_radius=5)
+                centText('<', left_option_cents[c], colour=black)
+
+                pygame.draw.rect(screen, [100,100,100], right_option_rects[c], border_radius=5)
+                pygame.draw.rect(screen, [130,130,130] if inRect(m_co, right_option_rects[c]) else [70,70,70], right_option_rects[c], border_radius=5)
+                centText('>', right_option_cents[c], colour=black)
+
             PDU()
             clock.tick(30); ticks += 1
 
@@ -1063,27 +1144,61 @@ for n in range(1,FOOD_HUB_N+1):
 ##################################################################
 
 #main loop
-def main_loop():
-    #instansiate classes and vars
-    ticks = 0
-
+""""
+===game_type - reflects rules and goal of the game
+    Values: Deathmatch, Area Capture, Rogue
+===player_mode - reflects state of player
+    Values: Player, Spectator, Pro, God
+===game_teams - reflects amount of teams
+    Values: 0 (FFA), 2, 4
+    Must be 2,4 for game_type == Area Capture
+    Must be 0 for game_type == Rogue
+"""
+def main_loop(game_type = "Deathmatch", player_mode = "Spectator", game_teams =  "0"):
+    #instansiate classes and vars based on game type, player mode, and teams num
+    game_teams = int(game_teams)
     chnkMngr = ChunkManager()
-    game = Game(chnkMngr)
-    camera = Camera(game)
+
+    #set up game based on game_type and game_teams
+    if game_type == "Deathmatch":
+        game = Game(chnkMngr, game_type, game_teams)
+        for t in list(game.bots): t.addXP(randrange(0,5000))
+    elif game_type == "Area Capture":
+        pass#TODO
+    elif game_type == "Rogue":
+        pass#TODO
+
+    #set up camera
+    camera = Camera(game, player_mode)
 
     #set up player evolve previews
     global PLAYER_EVOLVE_PREVIEWS
     PLAYER_EVOLVE_PREVIEWS = dict()
     for tank_name in ALL_TANK_NAMES: PLAYER_EVOLVE_PREVIEWS[tank_name] = Player(game, camera, [0,0], tank_name,preview=True)
 
-    user = Player(game, camera, [MAP_CONSTANT//2, MAP_CONSTANT//2], "Basic", preview=False)
+    #set up user based on player mode, and set camera target
+    if player_mode in ["Player","Pro","God"]:
+        user = Player(game, camera, [MAP_CONSTANT//2, MAP_CONSTANT//2], "Basic", TEAM_NULL if game_teams == 0 else randrange(0,game_teams), preview=False)
+        if player_mode in ["Pro", "God"]: user.addXP(10000000)
+        if player_mode == "God": user.upgrade_points += (MAX_TANK_UPGRADE*TANK_STATS_LEN - MAX_LEVEL)
+        camera.setTarget(user)
+    if player_mode == "Spectator":
+        user = None
+        game.user = None
+        camera.user = None
+        spec_ind = 0
+        spec_pos = DummyPosition(list(game.bots)[spec_ind].pos)
+        free_cam = False
+        cam_speed = 1
+        camera.setTarget(list(game.bots)[spec_ind])
+        
+        
 
-    user.addXP(1000000)
-    user.pos = [0,0]
-    for t in list(game.bots): t.addXP(randrange(0,500000))
-
+    #set up final loop vars
+    ticks = 0
     game_exit = False
-    while not game_exit and not user.isDead():
+
+    while not game_exit and (user == None or not user.isDead()):
         keys_pressed = pygame.key.get_pressed()
         m_co = pygame.mouse.get_pos()
         for ev in pygame.event.get():
@@ -1102,12 +1217,35 @@ def main_loop():
                 elif ev.button in [4,5]: camera.onScroll(ev.button)
 
             elif ev.type == pygame.KEYDOWN:
-                if ev.key in [pygame.K_LALT,pygame.K_RALT] and keys_pressed[pygame.K_F4]: pygame.quit(); quit()
-                else: user.onPress(ev.key)
+                if player_mode == "Spectator":
+                    if ev.key == pygame.K_LEFT: 
+                        spec_ind = (spec_ind - 1) % len(game.bots)
+                        camera.setTarget(list(game.bots)[spec_ind])
+                    elif ev.key == pygame.K_RIGHT: 
+                        spec_ind = (spec_ind + 1) % len(game.bots)
+                        camera.setTarget(list(game.bots)[spec_ind])
+                    elif ev.key == pygame.K_SPACE:
+                        if free_cam == False:
+                            free_cam = True
+                            spec_pos.pos = list(game.bots)[spec_ind].pos
+                            camera.setTarget(spec_pos)
+                        else:
+                            free_cam = False
+                            camera.setTarget(list(game.bots)[spec_ind])
+                else:
+                    if ev.key in [pygame.K_LALT,pygame.K_RALT] and keys_pressed[pygame.K_F4]: pygame.quit(); quit()
+                    else: user.onPress(ev.key)
 
 
-        user.onPressed(keys_pressed)
+        if user != None: user.onPressed(keys_pressed)
         game.update(ticks)
+
+        if player_mode == "Spectator" and free_cam:
+            
+            for k in M_DI:
+                if keys_pressed[k]: spec_pos.vel = dA(spec_pos.vel, dSM(cam_speed,M_DI[k]))
+            spec_pos.pos = dA(spec_pos.pos, spec_pos.vel)
+            spec_pos.vel = dSM(0.90,spec_pos.vel)
 
         fps = clock.get_fps()
         camera.show(fps)

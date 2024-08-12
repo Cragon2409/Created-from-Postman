@@ -1,1 +1,2 @@
 #optimise collision to break early on any statements
+#set up observer gamemode to watch ai
