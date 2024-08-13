@@ -161,6 +161,7 @@ TEAM_1 = 1
 TEAM_2 = 2
 TEAM_3 = 3
 
+EXTRA_OPTION_TEXT = ["", "", " Teams"]
 
 BOT_VIEW_DIST = [1024, 576] #rectangular because human view is rectangular
 BOT_VIEW_RECT = [-BOT_VIEW_DIST[0]//2, -BOT_VIEW_DIST[1]//2] + BOT_VIEW_DIST

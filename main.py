@@ -109,6 +109,59 @@ PDU = pygame.display.update
 ###                   CLASS DEFINITIONS                        ###
 ##################################################################
 
+### Sound handling
+
+# pygame.display.set_icon(pygame.transform.scale(pygame.image.load("Sprites\\IconSmall.png"),[32,32]))
+# pygame.mixer.init(frequency=22050, size=-16, channels=8, buffer=4096)
+# sounds = {}
+# sList = ["Goal","Hurt","Jump","Select","Switch"]
+# for s in sList:
+#     sounds[s] = pygame.mixer.Sound("Sounds\\"+s+".wav")
+
+# def play(s):  sounds[s].play()
+# def setVolume(v):
+#     global VOLUME
+#     VOLUME = v
+#     for s in sList:
+#         sounds[s].set_volume((v/10)**2)
+# def takeScreenshot():
+#     with open("Screenshots\\Counter.txt",'r') as f:
+#         screenshotCounter = int(f.read().splitlines()[0])
+#         pygame.image.save(screen,"Screenshots\\Sc"+str(screenshotCounter)+".png")
+#     screenshotCounter += 1
+#     with open("Screenshots\\Counter.txt",'w') as f:
+#         f.write(str(screenshotCounter))
+# setVolume(0.5)
+
+pygame.mixer.init(frequency=22050, size=-16, channels=8, buffer=4096)
+SOUND_NAMES = ["Goal","Hurt","Jump","Select","Switch"]  
+SOUNDS = {}
+for s in SOUND_NAMES: SOUNDS[s] = pygame.mixer.Sound("Sounds\\"+s+".wav")
+
+class SoundManager:
+    def __init__(self, game):
+        self.global_vol = 100
+        self.music_vol = 100
+        self.sfx_vol = 100
+        self.game = game
+        self.camera = game.camera
+    def assignVols(self):
+        self.mus_vol_raw = ((self.global_vol * self.music_vol)/(1000))**2 #scales 0-100
+        self.sfx_vol_raw = ((self.global_vol * self.sfx_vol)/(1000))**2 #scales 0-100
+
+class Sound:
+    def __init__(self, manager, sound_name, sound_pos,sound_type="SFX"):
+        self.manager, self.sound_name, self.sound_pos, self.sound_type = manager, sound_name, sound_pos, sound_type
+        self.vol = 0
+        self.sound_obj = SOUNDS[sound_name].copy() #check if copy works!
+        self.sound_obj.play()
+    def update(self):
+        if self.sound_type == "SFX":
+            self.vol = self.manager.mus_vol_raw
+        else: #music
+            self.vol = self.manager.mus_vol_raw
+
+
 ### Collision Handling and Optimisations
 class ChunkManager:
     def __init__(self):
@@ -1191,7 +1244,7 @@ class Menu:
             for c,option in enumerate(options):
                 pygame.draw.rect(screen, [100,100,100], option_rects[c], border_radius=5)
                 pygame.draw.rect(screen, [130,130,130], option_rects[c], 2, border_radius=5)
-                centText(option, option_cents[c], colour=black)
+                centText(option + EXTRA_OPTION_TEXT[c], option_cents[c], colour=black)
 
                 pygame.draw.rect(screen, [100,100,100], left_option_rects[c], border_radius=5)
                 pygame.draw.rect(screen, [130,130,130] if inRect(m_co, left_option_rects[c]) else [70,70,70], left_option_rects[c], border_radius=5)
