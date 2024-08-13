@@ -117,21 +117,45 @@ def attack_nearest_target(self, ticks):
 
     #if randrange(0,50) == 0: self.addXP(1000) #FIXME remove
     
-    # Check for level ups
-    while (self.upgrade_points > 0):
-        stat_ind = randrange(0,TANK_STATS_LEN)
-        while self.tank_stats[stat_ind] >= MAX_STAT_LVL: stat_ind = randrange(0,TANK_STATS_LEN)
-        self.upgradeStat(stat_ind)
-    while self.evolve_upgrade_points > 0:
-        if self.tank_type in TANK_UPGRADE_TREE: 
-            self.changeTankType(choice(TANK_UPGRADE_TREE[self.tank_type]))
-            self.evolve_upgrade_points -= 1
+    # # Check for level ups
+    # while (self.upgrade_points > 0):
+    #     stat_ind = randrange(0,TANK_STATS_LEN)
+    #     while self.tank_stats[stat_ind] >= MAX_STAT_LVL: stat_ind = randrange(0,TANK_STATS_LEN)
+    #     self.upgradeStat(stat_ind)
+    # while self.evolve_upgrade_points > 0:
+    #     if self.tank_type in TANK_UPGRADE_TREE: 
+    #         self.changeTankType(choice(TANK_UPGRADE_TREE[self.tank_type]))
+    #         self.evolve_upgrade_points -= 1
 
 
+def guardian_attack_nearest_target(self, ticks): 
+    """
+    Basic agent - attacks nearest target, follows random upgrade path for stats and evolutions.
+    """
+    # Pick target
+    if ticks % 30 == 0:
+        nearby_ents = list(filter(lambda x: x != self and (x.DRAW_CODE in [DRW_FOOD, DRW_TANK_BOT, DRW_TANK_PLR]) and ( (not x.DRAW_CODE in TANK_CODES) or x.team == TEAM_NULL or x.team != self.team), self.game.chunkManager.getInRect(dA(self.pos, BOT_VIEW_RECT[:2]), dS(self.pos, BOT_VIEW_RECT[:2]))))
+        if nearby_ents != []: self.target = min(nearby_ents, key = lambda x : coDistance(x.pos, self.pos))
+        elif self.target.DRAW_CODE != DRW_NONE or coDistance(self.pos, self.target.pos) < self.chase_distance: self.target = DummyPosition(self.game.randomPos())
+
+    # Look at target
+    self.faceTowards(self.target.pos)
+
+    # Navigate to/Shoot at target
+    dist = coDistance(self.pos, self.target.pos)
+    # if self.guardian: print(self.auto_fire, dist, dist <= self.chase_distance)
+    if dist <= self.chase_distance:
+        self.auto_fire = True
+        self.follower_move_code = 0 #attack/hover code
+        if self.target.DRAW_CODE != DRW_NONE: self.follower_move_pos = self.target.pos
+        else: self.follower_move_pos =  dA(self.pos, vecSub(dS(self.target.pos, self.pos), self.radius*4 + self.current_followers*0.5))
+    else:
+        self.auto_fire = False
 
 
 
 
 BOT_AI_FUNCS = { #intro func, choose upgrade levels, choose evolution path, update func
-    "Basic Random" : (basic_init, random_levels, random_path, attack_nearest_target)
+    "Basic Random"  : (basic_init, random_levels, random_path, attack_nearest_target),
+    "Guardian"      : (basic_init, random_levels, random_path, guardian_attack_nearest_target)
 }

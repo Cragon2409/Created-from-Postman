@@ -118,6 +118,11 @@ class ChunkManager:
         col_obj.chunk_st = chunk_st
         if not chunk_st in self.chunk_dict: self.chunk_dict[chunk_st] = [col_obj] 
         else: self.chunk_dict[chunk_st].append(col_obj)
+    def forceAddSt(self,col_obj, chunk_st):
+        if not chunk_st in self.chunk_dict: self.chunk_dict[chunk_st] = [col_obj]
+        elif not col_obj in self.chunk_dict[chunk_st]: self.chunk_dict[chunk_st].append(col_obj)
+    def forceRemoveSt(self, col_obj, chunk_st):
+        if chunk_st in self.chunk_dict and col_obj in self.chunk_dict[chunk_st]: self.chunk_dict[chunk_st].remove(col_obj)
     def update_obj(self, col_obj):
         new_chunk_st = self.posToChunk(col_obj.pos)
         if new_chunk_st != col_obj.chunk_st:
@@ -162,7 +167,7 @@ class ChunkManager:
         for x_ch in range(top_left_chunk_nums[0]-1, bottom_right_chunk_nums[0]+2):
             for y_ch in range(top_left_chunk_nums[1]-1, bottom_right_chunk_nums[1]+2):
                 chunk_st = str(x_ch) + '_' + str(y_ch)
-                entities += self.getChunk(chunk_st)
+                entities += [col_obj for col_obj in self.getChunk(chunk_st) if not col_obj in entities]
         return entities
          
 
@@ -172,12 +177,25 @@ class CollisionObject:
     def __init__(self, game):
         self.game = game
         self.game.chunkManager.add(self)
+        self.extra = []
     def colKill(self):
         self.game.chunkManager.remove(self)
+        if self.extra != []:
+            for chunk_st in self.extra:
+                self.game.chunkManager.forceRemoveSt(chunk_st)
+    def addExtraRect(self, tL, bR):
+        tL_ch = self.game.chunkManager.posToChunkNum(tL)
+        bR_ch = self.game.chunkManager.posToChunkNum(bR)
+        self.extra = []
+        for chunk_x in range(tL_ch[0], bR_ch[0]+1):
+            for chunk_y in range(tL_ch[1], bR_ch[1]+1):
+                new_chunk_st = str(chunk_x)+'_'+str(chunk_y)
+                self.extra.append(new_chunk_st)
+                self.game.chunkManager.forceAddSt(self, new_chunk_st)
     def getNearbyEntities(self):
         #assumes chunk string is updated
         nearby = []
-        for chunk_st in self.game.chunkManager.neighbouringChunks(self.chunk_st): nearby += self.game.chunkManager.getChunk(chunk_st)
+        for chunk_st in self.game.chunkManager.neighbouringChunks(self.chunk_st): nearby += [col_obj for col_obj in self.game.chunkManager.getChunk(chunk_st) if not col_obj in nearby]
         nearby.remove(self)
         return nearby
     def checkCollisions(self):
@@ -356,6 +374,7 @@ class Tank(CollisionObject):
     density = DNSTY_TANK
     def __init__(self, game, start_pos, start_type="Basic"):
         self.tank_type = start_type
+        self.killed_by_team = None
         self.game = game
         self.tank_stats = [0]*8
         self.xp_level = 0
@@ -436,10 +455,19 @@ class Tank(CollisionObject):
             if self.health == 0:
                 if col_obj.DRAW_CODE in [DRW_PROJ_BLT, DRW_PROJ_FLW]: killed_name = col_obj.owner.name
                 else: killed_name = col_obj.name
-                self.game.addMessage(self.name + " killed by " + killed_name, self.col, 360)
-                if col_obj.DRAW_CODE in [DRW_TANK_BOT, DRW_TANK_PLR]: col_obj.reportKilled(self)
+                if col_obj.DRAW_CODE in [DRW_TANK_BOT, DRW_TANK_PLR] and not self.guardian: col_obj.reportKilled(self)
                 elif col_obj.DRAW_CODE in [DRW_PROJ_BLT, DRW_PROJ_FLW]: col_obj.owner.reportKilled(self)
-                return True
+                if self.guardian:
+                    self.game.addMessage("Guardian killed by " + killed_name, self.col, 360)
+                    self.killed_by_team = col_obj.team
+                    self.team = self.killed_by_team
+                    self.col = TEAM_COLOURS[self.team]
+                    self.health = self.max_health
+                    for proj in self.projs: proj.team = self.team
+                    return False
+                else:
+                    self.game.addMessage(self.name + " killed by " + killed_name, self.col, 360)
+                    return True
         return False
     def reportKilled(self,col_obj):
         if col_obj.DRAW_CODE == DRW_FOOD: self.addXP(SHP_XP[col_obj.sides])
@@ -458,13 +486,16 @@ class Tank(CollisionObject):
             if self.DRAW_CODE == DRW_TANK_BOT: self.checkUpgrades()
     def update(self):
         #update position
-        for n in range(2):
-            nPos = self.pos[:]
-            nPos[n] += self.vel[n]
-            if not circleInRect(nPos,MAP_RECT,self.radius): self.vel[n] = 0
-        self.vel = dSM(DRAG, self.vel)
-        self.pos = dA(self.pos,self.vel)
-        self.game.chunkManager.update_obj(self)
+        if not self.guardian:
+            for n in range(2):
+                nPos = self.pos[:]
+                nPos[n] += self.vel[n]
+                if not circleInRect(nPos,MAP_RECT,self.radius): self.vel[n] = 0
+            self.vel = dSM(DRAG, self.vel)
+            self.pos = dA(self.pos,self.vel)
+            self.game.chunkManager.update_obj(self)
+        else:
+            self.vel = [0,0]
 
         #update firing 
         for tur in self.turrets: tur.update()
@@ -490,6 +521,7 @@ class Tank(CollisionObject):
 class Player(Tank):
     DRAW_CODE = DRW_TANK_PLR
     name = PLAYER_NAME
+    guardian = False
     def __init__(self, game, camera, start_pos, start_type, team=TEAM_NULL, preview=False):
         self.preview = preview
         self.team = team
@@ -538,16 +570,30 @@ class Bot(Tank):
     DRAW_CODE = DRW_TANK_BOT
     preview = False
     chase_distance = 100
-    def __init__(self, game, start_pos, start_type, team=TEAM_NULL):
-        super().__init__(game, start_pos, start_type)
-        self.name = genUsername()  
-        self.col = BOT_COL if team == TEAM_NULL else TEAM_COLOURS[team]
-        self.team = team
+    def __init__(self, game, start_pos, start_type, team=TEAM_NULL, guardian=False):
+        if guardian:
+            start_type = choice(GUARDIAN_TANK_NAMES)
+            super().__init__(game, start_pos, start_type)
+            self.intro_func, self.upgrade_levels_func, self.evolve_path_func, self.update_func = BOT_AI_FUNCS["Guardian"]
+            self.xp_level = MAX_LEVEL
+            self.name = ""
+            self.col = GUARDIAN_NEUTRAL_COL
+            self.team = TEAM_NULL
+            self.chase_distance = GUARDIAN_FIRE_DIST
+            #add extra chunk strings
+            self.addExtraRect(dA(self.pos, [-self.radius, -self.radius]), dA(self.pos, [self.radius, self.radius]))
+        else:
+            super().__init__(game, start_pos, start_type)
+            self.name = genUsername()  
+            self.col = BOT_COL if team == TEAM_NULL else TEAM_COLOURS[team]
+            self.team = team
+            self.intro_func, self.upgrade_levels_func, self.evolve_path_func, self.update_func = BOT_AI_FUNCS["Basic Random"]
+
         self.target = DummyPosition(self.game.randomPos())
         self.follower_move_code = 0
         self.follower_move_pos = self.pos
-        self.intro_func, self.upgrade_levels_func, self.evolve_path_func, self.update_func = BOT_AI_FUNCS["Basic Random"]
         self.ori_vel = 0
+        self.guardian = guardian
 
         # Initialise AI
         self.intro_func(self,start_type)
@@ -667,6 +713,14 @@ class Game:
         else:
             self.spawn_fields = []
 
+        if mode == "Area Capture":
+            self.guardians = [Bot(self, co, "Guardian", guardian=True) for co in [[-GUARDIAN_OFFSET,-GUARDIAN_OFFSET], [GUARDIAN_OFFSET, -GUARDIAN_OFFSET], [GUARDIAN_OFFSET, GUARDIAN_OFFSET], [-GUARDIAN_OFFSET, GUARDIAN_OFFSET]]]
+            self.guardian_areas = [genRect(guardian.pos,[GUARDIAN_AREA_WIDTH]*2) for guardian in self.guardians]
+        else:
+            self.guardians = []
+            self.guardian_areas = []
+        
+
         self.food_amount = 0
         self.bots_amount = 0
         for _ in range(STATIC_FOOD_NUM): self.generate_food()
@@ -694,6 +748,10 @@ class Game:
             b.controlAI(ticks)
             if b.update(): to_remove.append(b)
         for b in to_remove[::-1]: self.killBot(b)
+
+        for g in self.guardians:
+            g.controlAI(ticks)
+            if g.update(): pass #FIXME check if this is required, handled by hitBy function
             
 
         # update message log
@@ -855,15 +913,14 @@ class Camera:
         elif obj_type == DRW_PROJ_FLW:
             self.showPolygon(obj.poly, obj.col, 2, [210]*3 if obj.dmg_ticks > 0 else black)
     def showGrid(self):
-        gridSize = int(200/1)
         tL = self.dToR((0,0))
         bR = self.dToR((dw,dh))
 
-        for x in range(int(((tL[0])//200)*200),int(bR[0]),200):
+        for x in range(int(((tL[0])//GRID_SIZE)*GRID_SIZE),int(bR[0]),GRID_SIZE):
             dX = x*self.zoom + self.offset[0]
             pygame.draw.line(screen,darkgreen,(dX,0),(dX,dh))
 
-        for y in range(int(((tL[1])//200)*200),int(bR[1]),200):
+        for y in range(int(((tL[1])//GRID_SIZE)*GRID_SIZE),int(bR[1]),GRID_SIZE):
             dY = y*self.zoom + self.offset[1]
             pygame.draw.line(screen,darkgreen,(0,dY),(dw,dY))
         yB = -MAP_CONSTANT*self.zoom + self.offset[1]
@@ -879,8 +936,13 @@ class Camera:
             conv_rect = self.rToD(rect[:2]) + dSM(self.zoom, rect[2:])
             rect_points = [dLimit(co,[dw,dh],[0,0]) for co in rectPoints(conv_rect)]
             tL, bR = dMin(rect_points), dMax(rect_points)
-            
             if rectOverlapRect(S_RECT, conv_rect): transpRect(TEAM_COLOURS[c], tL+dS(bR,tL), SPAWN_FIELD_OPACITY)
+
+        for c,rect in enumerate(self.game.guardian_areas):
+            conv_rect = self.rToD(rect[:2]) + dSM(self.zoom, rect[2:])
+            rect_points = [dLimit(co,[dw,dh],[0,0]) for co in rectPoints(conv_rect)]
+            tL, bR = dMin(rect_points), dMax(rect_points)
+            if rectOverlapRect(S_RECT, conv_rect): transpRect(self.game.guardians[c].col, tL+dS(bR,tL), SPAWN_FIELD_OPACITY)
     def showCircle(self,pos,colour,radius,outline=0,outline_colour=None,override_zoom=None):
         zoom = override_zoom if override_zoom != None else self.zoom
         centre_d_pos = [int(round(i)) for i in self.rToD(pos,zoom)]
@@ -907,6 +969,7 @@ class Camera:
         #minimap
         pygame.draw.rect(screen,white,MINIMAP_POS + [110,110])
         for c,rect in enumerate(self.game.spawn_fields): pygame.draw.rect(screen, TEAM_MINIMAP_COLS[c], self.minimapTransformTight(rect[:2])+dSM(110/(MAP_CONSTANT*2),rect[2:]))
+        for c,rect in enumerate(self.game.guardian_areas): pygame.draw.rect(screen, GUARDIAN_MINIMAP_COLS[self.game.guardians[c].team], self.minimapTransformTight(rect[:2])+dSM(110/(MAP_CONSTANT*2),rect[2:]))
         pygame.draw.rect(screen,black,MINIMAP_POS + [110,110],2)
         minimap_bR = dA(MINIMAP_POS,[108,108])
         for bots in self.game.bots: pygame.draw.circle(screen, bots.col, self.minimapTransform(bots.pos),3 )
@@ -965,13 +1028,13 @@ class Camera:
         self.watchAt(self.target.pos, S_CENT)
         screen.fill(white)
         self.showGrid()
+        self.showAreas()
 
         nearby_objs = self.game.chunkManager.getInRect(self.dToR([0,0]), self.dToR([dw,dh]))
         for valid_draw_codes in DRW_ORDER:
             for obj in nearby_objs:
                 if obj.DRAW_CODE in valid_draw_codes: self.renderObj(obj)
 
-        self.showAreas()
 
         self.showOverlay(fps)
         
@@ -1186,7 +1249,8 @@ def main_loop(game_type = "Deathmatch", player_mode = "Spectator", game_teams = 
         game = Game(chnkMngr, game_type, game_teams)
         for t in list(game.bots): t.addXP(randrange(0,5000))
     elif game_type == "Area Capture":
-        pass#TODO
+        game = Game(chnkMngr, game_type, game_teams)
+        for t in list(game.bots): t.addXP(randrange(0,5000))
     elif game_type == "Rogue":
         pass#TODO
 
@@ -1203,7 +1267,9 @@ def main_loop(game_type = "Deathmatch", player_mode = "Spectator", game_teams = 
         user_team = TEAM_NULL if game_teams == 0 else randrange(0,game_teams)
         user = Player(game, camera, game.randomPos() if user_team == TEAM_NULL else randomInRect(game.spawn_fields[user_team]), "Basic", user_team, preview=False)
         if player_mode in ["Pro", "God"]: user.addXP(10000000)
-        if player_mode == "God": user.upgrade_points += (MAX_TANK_UPGRADE*TANK_STATS_LEN - MAX_LEVEL)
+        if player_mode == "God": 
+            user.upgrade_points = 0
+            for c in range(len(user.tank_stats)): user.tank_stats[c] = MAX_STAT_LVL
         camera.setTarget(user)
     if player_mode == "Spectator":
         user = None

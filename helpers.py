@@ -175,6 +175,8 @@ def polyArea(n,s):#returns area
 def rectCent(rect): return dA(rect[:2],dSM(0.5,rect[2:]))
 def rectPoints(rect): return [rect[:2], dA(rect[:2], [rect[2],0]), dA(rect[:2], rect[2:]), dA(rect[:2], [0,rect[3]])]
 
+def genRect(cent, dim): return dInt(dS(cent,dSM(0.5,dim))) + dim
+
 
 def dRConv(r): return r* (PI/180)
 def rDConv(d): return d* (180/PI)
@@ -234,6 +236,8 @@ def circleInPoly(c_co,c_radius,true_polygon, col_polygon, centre, radius, rad_of
     
 def rectOverlapRect(rect_1, rect_2): return any([inRect(co,rect_1) for co in rectPoints(rect_2)]) or any([inRect(co,rect_2) for co in rectPoints(rect_1)]) or any([rect_1[c+0] < rect_2[c+0] and rect_1[c+0]+rect_1[c+2] > rect_2[c+0]+rect_2[c+2] for c in range(2)])
 
+def roundNum(i_1, i_2):
+    return (i_1//i_2)*i_2
 
 WORD_LIST_1 = ["Cheese","Diamond","Fortnite","Roblox","Women","Men","Bannana","Pizza","Water",""]
 CONNECTIVE_LIST = ['','','-','_']

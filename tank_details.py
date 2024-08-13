@@ -11,7 +11,7 @@ TANKS TO ADD:
 Necromancer: recruits dead food
 Trapper: places mines
 """
-#Stats - [Max Health, Health Regeneration, Player Speed, Body Domage,    Bullet Damage, Bullet Endurance, Bullet Speed, Reload ||    Tank Radius, Tank Shape Type, Min zoom]
+#Stats - [Max Health, Health Regeneration, Player Speed, Body Damage,    Bullet Damage, Bullet Endurance, Bullet Speed, Reload ||    Tank Radius, Tank Shape Type, Min zoom]
 TANK_STATS = { #max at 5
     "Basic"         : [0,0,0,0,     0,0,0,0,        10,0,3],
 
@@ -37,12 +37,18 @@ TANK_STATS = { #max at 5
     "Penta Shot"    : [3,2,2,0,     2,0,0,3,        15,0,3],
     "Mortar"        : [3,2,2,0,     5,4,3,-5,       15,0,3],
     "Stalker"       : [3,2,0,0,     5,3,5,-1,       15,0,1.75],
-    "Boxer"         : [5,3,4,5,     0,0,0,0,        20,0,3]
+    "Boxer"         : [5,3,4,5,     0,0,0,0,        20,0,3],
+
+    "Guardian-1"    : [100,0,0,10,  9,9,13,7,        60,0,3], #needs to be placed on particular coords for chunk collsion to still work
+    "Guardian-2"    : [100,0,0,10,  9,9,13,7,        60,0,3],
+    "Guardian-3"    : [100,0,0,10,  9,9,13,7,        60,0,3],
+    "Guardian-4"    : [100,0,0,10,  9,9,13,7,        60,0,3]
 }
 
 MAX_TANK_RADIUS = 20
 
 ALL_TANK_NAMES = list(TANK_STATS)
+GUARDIAN_TANK_NAMES = ["Guardian-1", "Guardian-2", "Guardian-3", "Guardian-4"]
 TANK_PREVIEW_ZOOM = {
     "Basic"         : 3,
     "Flank"         : 3,
@@ -92,7 +98,12 @@ TANK_TURRET_SPECS = {
     "Penta Shot"    : [ [BULLET_TYPE_CODE,6,23,0,0 ], [BULLET_TYPE_CODE,5,17,0.6,0 ], [BULLET_TYPE_CODE,5,17,-0.6,0 ], [BULLET_TYPE_CODE,5,17,0.8,0 ], [BULLET_TYPE_CODE,5,17,-0.8,0 ]  ],
     "Mortar"        : [ [BULLET_TYPE_CODE,18,20,0,0 ]  ],
     "Stalker"       : [ [BULLET_TYPE_CODE,8,32,0,0 ] ],
-    "Boxer"         : [ ]
+    "Boxer"         : [ ],
+
+    "Guardian-1"    : [ [BULLET_TYPE_CODE,20,80,0,0 ] ],
+    "Guardian-2"    : [ [FOLLOW_TYPE_CODE,20,80,0,0 ] ],
+    "Guardian-3"    : [ [BULLET_TYPE_CODE,18,80,0,-12 ], [BULLET_TYPE_CODE,18,80,0,12 ] ],
+    "Guardian-4"    : [ [BULLET_TYPE_CODE,20,80,0,0 ], [BULLET_TYPE_CODE,20,80,0.5,0 ] ]
 }
 
 
