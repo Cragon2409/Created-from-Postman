@@ -111,22 +111,8 @@ PDU = pygame.display.update
 
 ### Sound handling
 
-# pygame.display.set_icon(pygame.transform.scale(pygame.image.load("Sprites\\IconSmall.png"),[32,32]))
-# pygame.mixer.init(frequency=22050, size=-16, channels=8, buffer=4096)
-# sounds = {}
-# sList = ["Goal","Hurt","Jump","Select","Switch"]
-# for s in sList:
-#     sounds[s] = pygame.mixer.Sound("Sounds\\"+s+".wav")
-
-# def play(s):  sounds[s].play()
-# def setVolume(v):
-#     global VOLUME
-#     VOLUME = v
-#     for s in sList:
-#         sounds[s].set_volume((v/10)**2)
-
 pygame.mixer.init(frequency=22050, size=-16, channels=8, buffer=4096)
-SOUND_NAMES = ["Goal","Hurt","Jump","Select","Switch"]  
+SOUND_NAMES = ["Goal","Hurt","Jump","Select","Switch", "Death", "Evolve", "LevelUp", "Shoot"]  
 SOUNDS = {}
 for s in SOUND_NAMES: SOUNDS[s] = pygame.mixer.Sound("Sounds\\"+s+".wav")
 MUSIC = pygame.mixer.Sound("Sounds\\Undertale OST_ 059 - Spider Dance.mp3")
@@ -160,20 +146,6 @@ class SoundManager:
     def stop(self):
         pygame.mixer.stop()
         
-
-
-# class Sound:
-#     def __init__(self, manager, sound_name, sound_pos,sound_type="SFX"):
-#         self.manager, self.sound_name, self.sound_pos, self.sound_type = manager, sound_name, sound_pos, sound_type
-#         self.vol = 0
-#         self.sound_obj = SOUNDS[sound_name].copy()
-#         self.rem_ticks = self.sound_obj.get_length()*60 #FIXME!
-#         self.sound_obj.play()
-#     def update(self):
-#         if self.sound_type == "SFX":
-#             self.vol = self.manager.mus_vol_raw
-#         else: #music
-#             self.vol = self.manager.mus_vol_raw
 
 
 ### Collision Handling and Optimisations
@@ -481,7 +453,7 @@ class Tank(CollisionObject):
                 total_acc = dA(total_acc, acc)
             self.vel = dA(self.vel, total_acc)
         if any_shot and self.DRAW_CODE == DRW_TANK_PLR: #FIXME enable for bots too! (and guardians)
-            self.game.sound_manager.playSound("Jump", self.pos)
+            self.game.sound_manager.playSound("Shoot", self.pos)
     def killProj(self,proj):
         if proj.DRAW_CODE == DRW_PROJ_FLW: self.current_followers -= 1
         proj.colKill()
@@ -547,14 +519,17 @@ class Tank(CollisionObject):
     def addXP(self, xp_amount):
         self.xp_points += xp_amount
         self.xp_points_total += xp_amount
+        levelled = False
         while self.xp_points >= self.xp_points_needed and self.xp_level < MAX_LEVEL:
             self.xp_points -= self.xp_points_needed
             self.setMaxXP()
             self.xp_level += 1
+            levelled = True
             self.upgrade_points += 1
             if self.xp_level in LEVEL_UPGRADES:
                 self.evolve_upgrade_points += 1  
             if self.DRAW_CODE == DRW_TANK_BOT: self.checkUpgrades()
+        if levelled and self.DRAW_CODE == DRW_TANK_PLR: self.game.sound_manager.playSound("LevelUp", self.pos)
     def update(self):
         #update position
         if not self.guardian:
@@ -670,6 +645,7 @@ class Bot(Tank):
         self.evolve_path = self.evolve_path_func()
         self.upgrade_point_path = self.upgrade_levels_func(self.evolve_path)
     def kill(self):
+        #self.game.sound_manager.playSound("Death",self.pos) #FIXME uncomment
         self.game.killBot(self)  
     def getFollowerInfo(self):
         return self.follower_move_pos, self.follower_move_code
@@ -883,6 +859,7 @@ class Game:
                             self.user.tank_stats[c] += 1
                             self.user.upgrade_points -= 1
                             self.user.assignStats()
+                            self.sound_manager.playSound("Select", self.user.pos)
             if not button_clicked and self.user.evolve_upgrade_points > 0:
                 tank_evolve_names = TANK_UPGRADE_TREE[self.user.tank_type] if self.user.tank_type in TANK_UPGRADE_TREE else []
                 for c,name in enumerate(tank_evolve_names):
@@ -891,6 +868,7 @@ class Game:
                         button_clicked = True
                         self.user.evolve_upgrade_points -= 1
                         self.user.changeTankType(name)
+                        self.sound_manager.playSound("Evolve", self.user.pos)
 
             if not button_clicked: self.user.onClick(m_co)
     def addMessage(self,txt,col,duration):
