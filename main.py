@@ -124,42 +124,56 @@ PDU = pygame.display.update
 #     VOLUME = v
 #     for s in sList:
 #         sounds[s].set_volume((v/10)**2)
-# def takeScreenshot():
-#     with open("Screenshots\\Counter.txt",'r') as f:
-#         screenshotCounter = int(f.read().splitlines()[0])
-#         pygame.image.save(screen,"Screenshots\\Sc"+str(screenshotCounter)+".png")
-#     screenshotCounter += 1
-#     with open("Screenshots\\Counter.txt",'w') as f:
-#         f.write(str(screenshotCounter))
-# setVolume(0.5)
 
 pygame.mixer.init(frequency=22050, size=-16, channels=8, buffer=4096)
 SOUND_NAMES = ["Goal","Hurt","Jump","Select","Switch"]  
 SOUNDS = {}
 for s in SOUND_NAMES: SOUNDS[s] = pygame.mixer.Sound("Sounds\\"+s+".wav")
+MUSIC = pygame.mixer.Sound("Sounds\\Undertale OST_ 059 - Spider Dance.mp3")
 
 class SoundManager:
     def __init__(self, game):
+        pygame.mixer.stop()
         self.global_vol = 100
-        self.music_vol = 100
-        self.sfx_vol = 100
+        self.music_vol = 40
+        self.sfx_vol = 60
         self.game = game
+        self.game.sound_manager = self
         self.camera = game.camera
+        self.music = MUSIC
+        if self.music != None: 
+            self.music.play(loops=-1) #infinite loop
+        self.assignVols()
     def assignVols(self):
-        self.mus_vol_raw = ((self.global_vol * self.music_vol)/(1000))**2 #scales 0-100
-        self.sfx_vol_raw = ((self.global_vol * self.sfx_vol)/(1000))**2 #scales 0-100
+        self.mus_vol_raw = (((self.global_vol * self.music_vol)/(1000))**2)/100 #scales 0-1
+        print(self.mus_vol_raw)
+        self.sfx_vol_raw = (((self.global_vol * self.sfx_vol)/(1000))**2)/100 #scales 0-1
+        if self.music != None: self.music.set_volume(self.mus_vol_raw)
+        for s in SOUNDS: SOUNDS[s].set_volume(self.sfx_vol_raw)
+    def playSound(self,name,pos):
+        #FIXME check pos to check if sound should be played!
+        SOUNDS[name].play()
+    def pause(self):
+        pygame.mixer.pause()
+    def resume(self):
+        pygame.mixer.unpause()
+    def stop(self):
+        pygame.mixer.stop()
+        
 
-class Sound:
-    def __init__(self, manager, sound_name, sound_pos,sound_type="SFX"):
-        self.manager, self.sound_name, self.sound_pos, self.sound_type = manager, sound_name, sound_pos, sound_type
-        self.vol = 0
-        self.sound_obj = SOUNDS[sound_name].copy() #check if copy works!
-        self.sound_obj.play()
-    def update(self):
-        if self.sound_type == "SFX":
-            self.vol = self.manager.mus_vol_raw
-        else: #music
-            self.vol = self.manager.mus_vol_raw
+
+# class Sound:
+#     def __init__(self, manager, sound_name, sound_pos,sound_type="SFX"):
+#         self.manager, self.sound_name, self.sound_pos, self.sound_type = manager, sound_name, sound_pos, sound_type
+#         self.vol = 0
+#         self.sound_obj = SOUNDS[sound_name].copy()
+#         self.rem_ticks = self.sound_obj.get_length()*60 #FIXME!
+#         self.sound_obj.play()
+#     def update(self):
+#         if self.sound_type == "SFX":
+#             self.vol = self.manager.mus_vol_raw
+#         else: #music
+#             self.vol = self.manager.mus_vol_raw
 
 
 ### Collision Handling and Optimisations
@@ -455,15 +469,19 @@ class Tank(CollisionObject):
         self.vel = [0,0]
         super().__init__(game)
     def shoot(self):
-        total_acc = [0,0]
+        any_shot = False
         if self.cooldown_timer == 0:
+            total_acc = [0,0]
             self.cooldown_timer = self.reload_ticks
             for tur in self.turrets:
                 shot, acc = tur.shoot()
                 if shot and tur.proj_type == Follower:
                     self.current_followers += 1
+                any_shot = any_shot or shot
                 total_acc = dA(total_acc, acc)
-        self.vel = dA(self.vel, total_acc)
+            self.vel = dA(self.vel, total_acc)
+        if any_shot and self.DRAW_CODE == DRW_TANK_PLR: #FIXME enable for bots too! (and guardians)
+            self.game.sound_manager.playSound("Jump", self.pos)
     def killProj(self,proj):
         if proj.DRAW_CODE == DRW_PROJ_FLW: self.current_followers -= 1
         proj.colKill()
@@ -595,8 +613,7 @@ class Player(Tank):
             for tur_stats in TANK_TURRET_SPECS[start_type]: self.turrets.append(Turret(game, self, *tur_stats))
         self.game.user = self
     def onClick(self,m_co):
-        if not self.auto_fire:
-            self.shoot()
+        if not self.auto_fire: self.shoot()
     def onPress(self,key):
         if key == pygame.K_e: self.auto_fire = not self.auto_fire
     def onPressed(self,keys):
@@ -1335,7 +1352,7 @@ def main_loop(game_type = "Deathmatch", player_mode = "Spectator", game_teams = 
         camera.setTarget(list(game.bots)[spec_ind])
         
         
-
+    sound_mngr = SoundManager(game)
     #set up final loop vars
     ticks = 0
     game_exit = False
@@ -1352,7 +1369,9 @@ def main_loop(game_type = "Deathmatch", player_mode = "Spectator", game_teams = 
                         game_exit = True
                         continue
                     elif pause_button.inButton(m_co):
+                        sound_mngr.pause()
                         game_exit = pauseMenu()
+                        sound_mngr.resume()
                         if game_exit: continue
                     else:
                         game.onClick(ev.pos)
@@ -1397,6 +1416,8 @@ def main_loop(game_type = "Deathmatch", player_mode = "Spectator", game_teams = 
         PDU()
 
         clock.tick(60); ticks += 1
+    
+    sound_mngr.stop()
 
 
 menu = Menu()
