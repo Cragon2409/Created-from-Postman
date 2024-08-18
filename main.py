@@ -19,11 +19,14 @@ from bots_ai import *
 ##################################################################
 pygame.init()
 
-screen = pygame.display.set_mode((0,0),pygame.FULLSCREEN)
-dw,dh = pygame.display.get_surface().get_size()
-dim = [dw,dh]
+#change this to determine if the game starts on fullscreen
 
-display_width, display_height = dw,dh
+SMALL_WINDOW_SIZE = [1920,1080]
+
+screen = pygame.display.set_mode(SMALL_WINDOW_SIZE,pygame.RESIZABLE)
+dw,dh = pygame.display.get_surface().get_size()
+
+# display_width, display_height = dw,dh
 pygame.display.set_caption("Pygame")
 clock = pygame.time.Clock()
 
@@ -36,32 +39,104 @@ big_font = pygame.font.SysFont("calibri", 80)
 ###                          GRAPHICS CONSTANTS                ###
 ##################################################################
 
-S_CENT = [dw//2, dh//2]
-S_RECT = [0,0,dw,dh]
-EX_MARGIN = 300
-
-EX_S_RECT = [-EX_MARGIN, -EX_MARGIN, dw+2*EX_MARGIN, dh+2*EX_MARGIN]
-S_CORNER_POS = [[0,0], [dw,0], [dw,dh], [0,dh]]
+#pygame based constants
 M_DI = {pygame.K_w:(0,-1),pygame.K_a:(-1,0),pygame.K_s:(0,1),pygame.K_d:(1,0)}
 
-BORDER_COLOUR = [200]*3
-XPB_LENGTH = (dw-120)//5
-XPB_POS = dw//2-XPB_LENGTH//2
-
+#colour based constants
 SHP_COLS = [None,None,None, red, yellow, blue, purple]
-
-MESSAGE_LOG_POS = [dw-400,dh-50]
-LEADERBOARD_POS = [dw-350,450]
-
-PLAYER_STATS_RECTS = [[10,dh-TANK_STATS_LEN*32+n*32,205,30] for n in range(TANK_STATS_LEN)]
-PLAYER_STATS_POINTS_POS = dA(PLAYER_STATS_RECTS[0], [3,-30])
-
-MINIMAP_POS = [dw-120, 50]
-
-HORIZON_LINE = dh//2
-VER_SKY_COL = [10,5,5]
 VER_LAND_COL = [180]*3
 VER_LINE_COL = darkgreen
+BORDER_COLOUR = [200]*3
+VER_SKY_COL = [10,5,5]
+PLAYER_COL = [30,210,70]
+BOT_COL = [210,50,30]
+TEAM_COLOURS = [PLAYER_COL, BOT_COL, [200,200,30], [30,120,210], ]
+SPAWN_FIELD_OPACITY = 80
+TEAM_MINIMAP_COLS = [[int(i*SPAWN_FIELD_OPACITY/255 + 255*(1 - SPAWN_FIELD_OPACITY/255)) for i in col] for col in TEAM_COLOURS]
+TEAM_DARK_COLS = [[int(i*0.3) for i in col] for col in TEAM_COLOURS]
+SPAWN_MINIMAP_OPACITY = 150
+GUARDIAN_MINIMAP_COLS = [[int(i*SPAWN_MINIMAP_OPACITY/255 + 255*(1 - SPAWN_MINIMAP_OPACITY/255)) for i in col] for col in TEAM_COLOURS+[GUARDIAN_NEUTRAL_COL]]
+
+#screen size based constants
+#VAPOUR SETUP
+
+
+QUIT_BUTTON_RECT = [dw-45,10,30,30]
+PLAY_BUTTON_RECT = [dw-45-40,10,30,30]
+PAUSE_BUTTON_RECT = [dw-45-40,10,30,30]
+START_BUTTON_RECT = [dw//2-300,dh//2-60-250, 600, 120]
+FULLSCREEN_BUTTON_RECT = [100, 210, 180, 30]
+
+MODE_PROGRESS_RECT = [dw-210,200,200,30]
+MODE_PROGRESS_GAP = 35
+
+button_list = []
+def syncGraphicsConstants(fullscreen=True,changing_mode=True):
+    global screen, dw, dh, S_CENT, S_RECT, EX_MARGIN, EX_S_RECT, S_CORNER_POS, XPB_LENGTH, XPB_POS, MESSAGE_LOG_POS, LEADERBOARD_POS, PLAYER_STATS_RECTS, PLAYER_STATS_POINTS_POS, MINIMAP_POS, SOUND_SLIDER_RECTS, QUIT_BUTTON_RECT, PLAY_BUTTON_RECT, PAUSE_BUTTON_RECT, START_BUTTON_RECT, HORIZON_LINE, ver_surface, option_rects, option_cents, left_option_rects, left_option_cents, right_option_rects, right_option_cents
+    if changing_mode:
+        if fullscreen: screen = pygame.display.set_mode((0,0),pygame.FULLSCREEN)
+        else: screen = pygame.display.set_mode(SMALL_WINDOW_SIZE, pygame.RESIZABLE)
+    dw,dh = pygame.display.get_surface().get_size()
+    S_CENT = [dw//2, dh//2]
+    S_RECT = [0,0,dw,dh]
+    EX_MARGIN = 300
+
+    EX_S_RECT = [-EX_MARGIN, -EX_MARGIN, dw+2*EX_MARGIN, dh+2*EX_MARGIN]
+    S_CORNER_POS = [[0,0], [dw,0], [dw,dh], [0,dh]]
+
+    XPB_LENGTH = (dw-120)//5
+    XPB_POS = dw//2-XPB_LENGTH//2
+
+
+    MESSAGE_LOG_POS = [dw-400,dh-50]
+    LEADERBOARD_POS = [dw-350,450]
+
+    PLAYER_STATS_RECTS = [[10,dh-TANK_STATS_LEN*32+n*32,205,30] for n in range(TANK_STATS_LEN)]
+    PLAYER_STATS_POINTS_POS = dA(PLAYER_STATS_RECTS[0], [3,-30])
+
+    MINIMAP_POS = [dw-120, 50]
+
+    SOUND_SLIDER_RECTS = [
+        [100, 30+n*50, 180, 6] for n in range(3)
+    ]
+    QUIT_BUTTON_RECT[0] = dw - 45
+    PLAY_BUTTON_RECT[0] = dw-45-40
+    PAUSE_BUTTON_RECT[0] = dw-45-40
+    START_BUTTON_RECT[0] = dw//2 - 300
+    START_BUTTON_RECT[1] = dh//2 - 60 - 250
+
+    HORIZON_LINE = dh//2
+
+    for button in button_list: button.syncCent()
+    
+    ver_surface = pygame.Surface([dw,dh])
+    ver_surface.fill(VER_LAND_COL)
+    step = dw//10
+    n = 0
+    for x in range(-dw*20,dw*21,step):
+        if n%2 == 0: pygame.draw.line(ver_surface,VER_LINE_COL,(x,dh+1),(dw//2,HORIZON_LINE))
+        n += 1
+    pygame.draw.rect(ver_surface,VER_SKY_COL,[0,0,dw,HORIZON_LINE+15])
+
+    option_rects = [[dw//2 - 100, dh//2-150+50*c, 200, 40] for c in range(3)]
+    option_cents = [rectCent(rect) for rect in option_rects]
+
+    left_option_rects = [dA(option_rects[c][:2],[-50,0]) + [40,40] for c in range(3)]
+    left_option_cents = [rectCent(rect) for rect in left_option_rects]
+
+    right_option_rects = [dA(option_rects[c][:2],[210,0]) + [40,40] for c in range(3)]
+    right_option_cents = [rectCent(rect) for rect in right_option_rects]
+
+    MODE_PROGRESS_RECT[0] = dw-210
+
+syncGraphicsConstants(True, True)
+FULLSCREEN = True
+
+def toggleFullscreen():
+    global FULLSCREEN
+    FULLSCREEN = not FULLSCREEN
+    syncGraphicsConstants(FULLSCREEN, True)
+
 
 ##################################################################
 ###                          GLOBAL VARS                       ###
@@ -117,11 +192,13 @@ SOUNDS = {}
 for s in SOUND_NAMES: SOUNDS[s] = pygame.mixer.Sound("Sounds\\"+s+".wav")
 MUSIC = pygame.mixer.Sound("Sounds\\Undertale OST_ 059 - Spider Dance.mp3")
 
+SOUND_SCALE = math.log10(2)/100
+scale10 = lambda x : 10**(x*SOUND_SCALE) - 1 #scales 0 - 100 from 0 - 1
 class SoundManager:
     def __init__(self, game):
         pygame.mixer.stop()
-        self.global_vol = 100
-        self.music_vol = 40
+        self.global_vol = 25
+        self.music_vol = 25
         self.sfx_vol = 60
         self.game = game
         self.game.sound_manager = self
@@ -130,10 +207,12 @@ class SoundManager:
         if self.music != None: 
             self.music.play(loops=-1) #infinite loop
         self.assignVols()
+        self.setSliderPos()
     def assignVols(self):
-        self.mus_vol_raw = (((self.global_vol * self.music_vol)/(1000))**2)/100 #scales 0-1
-        print(self.mus_vol_raw)
-        self.sfx_vol_raw = (((self.global_vol * self.sfx_vol)/(1000))**2)/100 #scales 0-1
+        global_scale = self.global_vol/100
+        self.mus_vol_raw = scale10(self.music_vol * global_scale)
+        self.sfx_vol_raw = scale10(self.sfx_vol * global_scale)
+
         if self.music != None: self.music.set_volume(self.mus_vol_raw)
         for s in SOUNDS: SOUNDS[s].set_volume(self.sfx_vol_raw)
     def playSound(self,name,pos):
@@ -145,6 +224,26 @@ class SoundManager:
         pygame.mixer.unpause()
     def stop(self):
         pygame.mixer.stop()
+    def setSliderPos(self):
+        vols = [i/100 for i in [self.global_vol, self.music_vol, self.sfx_vol]]
+        self.slider_pos_list = [[rect[0]+rect[2]*vols[c], rect[1]+rect[3]//2] for c,rect in enumerate(SOUND_SLIDER_RECTS)]
+    def showSliders(self):
+        for c,rect in enumerate(SOUND_SLIDER_RECTS):
+            pygame.draw.rect(screen, [100,100,100], rect, border_radius = 3)
+            pygame.draw.rect(screen, black, rect, width=1, border_radius = 3)
+            pygame.draw.circle(screen, [10,20,110], self.slider_pos_list[c], SOUND_SLIDER_RADIUS)    
+            pygame.draw.circle(screen, [180,180,180], self.slider_pos_list[c], SOUND_SLIDER_RADIUS, 1)    
+            simpleText(SOUND_SETTING_NAMES[c], dA(rect[:2],[-70,-10]))
+    def inSliderCircles(self,m_co): #returns None | (slider index, x_offset)
+        for c,pos in enumerate(self.slider_pos_list):
+            if coDistance(m_co, pos) < SOUND_SLIDER_RADIUS: return c, pos[0]-m_co[0]
+        return None, None
+    def assignSlider(self, slider_ind, x_off, m_co):
+        new_vol = limit(((m_co[0] + x_off) - SOUND_SLIDER_RECTS[slider_ind][0])/SOUND_SLIDER_RECTS[slider_ind][2],1,0)*100
+        if slider_ind == 0: self.global_vol = new_vol
+        elif slider_ind == 1: self.music_vol = new_vol
+        else: self.sfx_vol = new_vol
+        self.setSliderPos()
         
 
 
@@ -542,6 +641,7 @@ class Tank(CollisionObject):
             self.game.chunkManager.update_obj(self)
         else:
             self.vel = [0,0]
+            if self.team != TEAM_NULL: self.game.team_control_progress[self.team] += 1
 
         #update firing 
         for tur in self.turrets: tur.update()
@@ -762,6 +862,8 @@ class Game:
         if mode == "Area Capture":
             self.guardians = [Bot(self, co, "Guardian", guardian=True) for co in [[-GUARDIAN_OFFSET,-GUARDIAN_OFFSET], [GUARDIAN_OFFSET, -GUARDIAN_OFFSET], [GUARDIAN_OFFSET, GUARDIAN_OFFSET], [-GUARDIAN_OFFSET, GUARDIAN_OFFSET]]]
             self.guardian_areas = [genRect(guardian.pos,[GUARDIAN_AREA_WIDTH]*2) for guardian in self.guardians]
+
+            self.team_control_progress = [0]*teams #stores ticks of controlled areas
         else:
             self.guardians = []
             self.guardian_areas = []
@@ -1062,12 +1164,24 @@ class Camera:
 
         #show leaderboard
         #self.leaderboard = [] # [ [tank name, tank points, leaderboard num] || None , ... ]
-        for c,entry in enumerate(self.game.leaderboard):
-            if entry == None: simpleText("...", dA(LEADERBOARD_POS,[50,(-c)*40]), black, font=fancyFont)
-            else:
-                simpleText('#'+str(entry[2]), dA(LEADERBOARD_POS,[0,(-c)*40]), black, font=fancyFont)
-                simpleText(entry[0], dA(LEADERBOARD_POS,[50,(-c)*40]), black, font=fancyFont)
-                simpleText(str(entry[1]), dA(LEADERBOARD_POS,[250,(-c)*40]),  black, font=fancyFont)
+        if self.game.mode == "Deathmatch":
+            for c,entry in enumerate(self.game.leaderboard):
+                if entry == None: simpleText("...", dA(LEADERBOARD_POS,[50,(-c)*40]), black, font=fancyFont)
+                else:
+                    simpleText('#'+str(entry[2]), dA(LEADERBOARD_POS,[0,(-c)*40]), black, font=fancyFont)
+                    simpleText(entry[0], dA(LEADERBOARD_POS,[50,(-c)*40]), black, font=fancyFont)
+                    simpleText(str(entry[1]), dA(LEADERBOARD_POS,[250,(-c)*40]),  black, font=fancyFont)
+
+        #show gamemode progress
+        if self.game.mode == "Area Capture":
+            for c,progress in enumerate(self.game.team_control_progress):
+                rect = dA(MODE_PROGRESS_RECT[:2],[0,c*MODE_PROGRESS_GAP]) + MODE_PROGRESS_RECT[2:]
+                rect_2 = rect[:]
+                rect_2[2] *= min(1, progress/MAX_AREA_TICKS)
+                pygame.draw.rect(screen, TEAM_DARK_COLS[c], rect, border_radius=4)
+                pygame.draw.rect(screen, TEAM_COLOURS[c], rect_2, border_top_left_radius=4, border_bottom_left_radius=4)
+                pygame.draw.rect(screen, black, rect, border_radius=4, width=3)
+
 
         #fps
         simpleText("FPS: " + str(round(fps,2)),(dw-260,10),red)
@@ -1101,7 +1215,7 @@ class Camera:
 class MenuButton:
     def __init__(self,rect,text,func,font=fancyFont,rounding=-1):
         self.rect,self.text,self.func, self.font, self.rounding = rect,text,func,font, rounding
-        self.cent = rectCent(rect)
+        self.syncCent()
     def inButton(self,m_co):
         return inRect(m_co, self.rect)
     def onPress(self):
@@ -1112,24 +1226,67 @@ class MenuButton:
         pygame.draw.rect(screen,selCol,self.rect, border_radius = self.rounding)
         pygame.draw.rect(screen,black,self.rect,2, border_radius = self.rounding)
         centText(self.text,self.cent, black,font=self.font)
+    def syncCent(self):
+        self.cent = rectCent(self.rect)
 
 
-def pauseMenu():
+def resizeCheck(ev):
+    if ev.type == pygame.VIDEORESIZE:
+        if not FULLSCREEN:
+            dw_t, dh_t = pygame.display.get_surface().get_size()
+            SMALL_WINDOW_SIZE[0] = dw_t
+            SMALL_WINDOW_SIZE[1] = dh_t
+        syncGraphicsConstants(False,False)
+        return True
+    return False
+
+def pauseMenu(game):
     menu_exit = False
+    setting_vol = False
     screen.blit(pause_surface,[0,0])
+    copy_surface = screen.copy()
+    fullscreen_button.text = "Fullscreen" if FULLSCREEN else "Windowed"
     while not menu_exit:
         m_co = pygame.mouse.get_pos()
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT: pygame.quit(); quit()
             elif ev.type == pygame.MOUSEBUTTONDOWN:
-                if inRect(m_co,quit_button.rect):
-                    return True
-                if inRect(m_co,play_button.rect):
-                    return False
+                if ev.button == 1:
+                    if inRect(m_co,quit_button.rect):
+                        return True
+                    elif inRect(m_co,play_button.rect):
+                        return False
+                    elif inRect(m_co, fullscreen_button.rect):
+                        toggleFullscreen()
+                        fullscreen_button.text = "Fullscreen" if FULLSCREEN else "Windowed"
+                    else:
+                        clicked, x_off = game.sound_manager.inSliderCircles(m_co)
+                        if clicked != None:
+                            setting_vol = True
 
-        
+            elif ev.type == pygame.MOUSEBUTTONUP:
+                if setting_vol:
+                    setting_vol = False
+                    game.sound_manager.assignSlider(clicked, x_off, m_co)
+                    game.sound_manager.assignVols()
+                    game.sound_manager.playSound("Select", game.user.pos)
+            elif ev.type == pygame.KEYDOWN:
+                if ev.key == pygame.K_F11: 
+                    toggleFullscreen()
+                    fullscreen_button.text = "Fullscreen" if FULLSCREEN else "Windowed"
+            elif resizeCheck(ev):
+                pass
+                
+        if setting_vol:
+            game.sound_manager.assignSlider(clicked, x_off, m_co)
+
+        screen.fill(black)
+        screen.blit(copy_surface, (0,0))
+
         play_button.draw(m_co)
         quit_button.draw(m_co)
+        fullscreen_button.draw(m_co)
+        game.sound_manager.showSliders()
         PDU()
         
         clock.tick(30)
@@ -1138,31 +1295,19 @@ pause_surface = pygame.Surface([dw,dh],pygame.SRCALPHA,32)
 pause_surface.fill([0,0,0,128])
 
 def quit_func(): pygame.quit(); quit()
-quit_button = MenuButton([dw-45,10,30,30],"X", lambda:True )
-play_button = MenuButton([dw-45-40,10,30,30],"|>",lambda:True )
-pause_button = MenuButton([dw-45-40,10,30,30],"||",pauseMenu )
-start_button = MenuButton([dw//2-300,dh//2-60-250, 600, 120],"Start",lambda:True, big_font, 5)
+quit_button = MenuButton(QUIT_BUTTON_RECT,"X", lambda:True )
+play_button = MenuButton(PLAY_BUTTON_RECT,"|>",lambda:True )
+pause_button = MenuButton(PAUSE_BUTTON_RECT,"||",pauseMenu )
+start_button = MenuButton(START_BUTTON_RECT,"Start",lambda:True, big_font, 5)
 
-option_rects = [[dw//2 - 100, dh//2-150+50*c, 200, 40] for c in range(3)]
-option_cents = [rectCent(rect) for rect in option_rects]
+fullscreen_button = MenuButton(FULLSCREEN_BUTTON_RECT, "Fullscreen", lambda:True, fancyFont, 2)
 
-left_option_rects = [dA(option_rects[c][:2],[-50,0]) + [40,40] for c in range(3)]
-left_option_cents = [rectCent(rect) for rect in left_option_rects]
+button_list = [quit_button, play_button, pause_button, start_button, fullscreen_button]
 
-right_option_rects = [dA(option_rects[c][:2],[210,0]) + [40,40] for c in range(3)]
-right_option_cents = [rectCent(rect) for rect in right_option_rects]
 
-#VAPOUR SETUP
 
-ver_surface = pygame.Surface([dw,dh])
-ver_surface.fill(VER_LAND_COL)
-step = dw//10
-n = 0
-for x in range(-dw*20,dw*21,step):
-    if n%2 == 0:
-        pygame.draw.line(ver_surface,VER_LINE_COL,(x,dh+1),(dw//2,HORIZON_LINE))
-    n += 1
-pygame.draw.rect(ver_surface,VER_SKY_COL,[0,0,dw,HORIZON_LINE+15])
+
+
 
 class Menu:
     def __init__(self):
@@ -1221,7 +1366,11 @@ class Menu:
                                         self.option_strings[2] = self.team_options
 
                 elif ev.type == pygame.KEYDOWN:
-                    if ev.key in [pygame.K_LALT,pygame.K_RALT] and keys_pressed[pygame.K_F4]: pygame.quit(); quit()
+                    if ev.key == pygame.K_F11: 
+                        toggleFullscreen()
+                    elif ev.key in [pygame.K_LALT,pygame.K_RALT] and keys_pressed[pygame.K_F4]: pygame.quit(); quit()
+                elif resizeCheck(ev):
+                    pass
 
             screen.fill(VER_LAND_COL)
             ### vapour wave render
@@ -1304,6 +1453,7 @@ def main_loop(game_type = "Deathmatch", player_mode = "Spectator", game_teams = 
 
     #set up camera
     camera = Camera(game, player_mode)
+    sound_mngr = SoundManager(game)
 
     #set up player evolve previews
     global PLAYER_EVOLVE_PREVIEWS
@@ -1313,7 +1463,9 @@ def main_loop(game_type = "Deathmatch", player_mode = "Spectator", game_teams = 
     #set up user based on player mode, and set camera target
     if player_mode in ["Player","Pro","God"]:
         user_team = TEAM_NULL if game_teams == 0 else randrange(0,game_teams)
-        user = Player(game, camera, game.randomPos() if user_team == TEAM_NULL else randomInRect(game.spawn_fields[user_team]), "Basic", user_team, preview=False)
+        new_pos = game.randomPos() if user_team == TEAM_NULL else randomInRect(game.spawn_fields[user_team])
+        while not inRect(new_pos, MAP_SPAWN_RECT): new_pos = game.randomPos()
+        user = Player(game, camera, new_pos , "Basic", user_team, preview=False)
         if player_mode in ["Pro", "God"]: user.addXP(10000000)
         if player_mode == "God": 
             user.upgrade_points = 0
@@ -1330,7 +1482,6 @@ def main_loop(game_type = "Deathmatch", player_mode = "Spectator", game_teams = 
         camera.setTarget(list(game.bots)[spec_ind])
         
         
-    sound_mngr = SoundManager(game)
     #set up final loop vars
     ticks = 0
     game_exit = False
@@ -1348,7 +1499,7 @@ def main_loop(game_type = "Deathmatch", player_mode = "Spectator", game_teams = 
                         continue
                     elif pause_button.inButton(m_co):
                         sound_mngr.pause()
-                        game_exit = pauseMenu()
+                        game_exit = pauseMenu(game)
                         sound_mngr.resume()
                         if game_exit: continue
                     else:
@@ -1356,7 +1507,9 @@ def main_loop(game_type = "Deathmatch", player_mode = "Spectator", game_teams = 
                 elif ev.button in [4,5]: camera.onScroll(ev.button)
 
             elif ev.type == pygame.KEYDOWN:
-                if player_mode == "Spectator":
+                if ev.key == pygame.K_F11:
+                    toggleFullscreen()
+                elif player_mode == "Spectator":
                     if ev.key == pygame.K_LEFT: 
                         spec_ind = (spec_ind - 1) % len(game.bots)
                         camera.setTarget(list(game.bots)[spec_ind])
@@ -1374,6 +1527,7 @@ def main_loop(game_type = "Deathmatch", player_mode = "Spectator", game_teams = 
                 else:
                     if ev.key in [pygame.K_LALT,pygame.K_RALT] and keys_pressed[pygame.K_F4]: pygame.quit(); quit()
                     else: user.onPress(ev.key)
+            elif resizeCheck(ev): pass
 
 
         if user != None: user.onPressed(keys_pressed)
@@ -1397,8 +1551,6 @@ def main_loop(game_type = "Deathmatch", player_mode = "Spectator", game_teams = 
     
     sound_mngr.stop()
 
-
-menu = Menu()
-menu.mainMenu()
-
-
+if __name__ == "__main__":
+    menu = Menu()
+    menu.mainMenu()
