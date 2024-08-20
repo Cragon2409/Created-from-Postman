@@ -534,6 +534,7 @@ class Tank(CollisionObject):
         self.regen_timer = self.regen_ticks
         self.auto_fire = False
         self.projs = set()
+        self.last_hit = None
         self.turrets = []
         for tur_stats in TANK_TURRET_SPECS[start_type]:
            self.turrets.append(Turret(self.game, self, *tur_stats))
@@ -597,6 +598,8 @@ class Tank(CollisionObject):
         self.vel = dA(self.vel,dSM(self.move_speed,di))
     def hitBy(self,col_obj):
         if not (col_obj.DRAW_CODE in [DRW_PROJ_BLT,DRW_PROJ_FLW] and col_obj in self.projs):
+            if col_obj.DRAW_CODE in [DRW_PROJ_BLT, DRW_PROJ_FLW]: self.last_hit = col_obj.owner
+            elif col_obj.DRAW_CODE in TANK_CODES: self.last_hit = col_obj
             self.health = max(0, self.health - col_obj.col_dmg)
             self.regen_timer = self.regen_ticks*20 #disable in combat regeneration (when hit)
             if self.health == 0:
@@ -604,6 +607,7 @@ class Tank(CollisionObject):
                 else: killed_name = col_obj.name
                 if col_obj.DRAW_CODE in [DRW_TANK_BOT, DRW_TANK_PLR] and not self.guardian: col_obj.reportKilled(self)
                 elif col_obj.DRAW_CODE in [DRW_PROJ_BLT, DRW_PROJ_FLW]: col_obj.owner.reportKilled(self)
+                elif col_obj.DRAW_CODE == DRW_FOOD and self.last_hit != None: self.last_hit.reportKilled(self)
                 if self.guardian:
                     self.game.addMessage("Guardian killed by " + killed_name, self.col, 360)
                     self.killed_by_team = col_obj.team
@@ -800,6 +804,7 @@ class Food(CollisionObject):
         self.col_dmg = 1
         self.dmg_ticks = 0
         self.rotation = 0
+        self.last_hit = None
 
         super().__init__(game)
         self.o_poly, self.r, self.o_col_poly, self.col_r, self.o_col_rads = generatePolygon([0,0], self.side_length, self.sides, randrange(0,360))
@@ -833,9 +838,14 @@ class Food(CollisionObject):
     def hitBy(self,col_obj):
         self.health = max(0, self.health - col_obj.col_dmg)
         self.dmg_ticks = DMG_ANIMATION_DURATION
+
+        if col_obj.DRAW_CODE in [DRW_PROJ_BLT, DRW_PROJ_FLW]: self.last_hit = col_obj.owner
+        elif col_obj.DRAW_CODE in TANK_CODES: self.last_hit = col_obj
+
         if self.health == 0:
             if col_obj.DRAW_CODE in [DRW_TANK_BOT, DRW_TANK_PLR]: col_obj.reportKilled(self)
             elif col_obj.DRAW_CODE in [DRW_PROJ_BLT, DRW_PROJ_FLW]: col_obj.owner.reportKilled(self)
+            elif col_obj.DRAW_CODE == DRW_FOOD and self.last_hit != None: self.last_hit.reportKilled(self)
             return True
         else: return False
     

@@ -88,7 +88,10 @@ def type_check_init(self):
         self.end_attack_type = "SUMMS"
         self.chase_distance = SUM_ATTACK_DIST
 
-    if self.end_attack_type == "MELEE" and self.xp_level >= LEVEL_UPGRADES[0]: 
+    if self.end_attack_type == "MELEE" and self.xp_level <= LEVEL_UPGRADES[0]: 
+        self.current_attack_type = "MID"
+        self.chase_distance = MID_ATTACK_DIST
+    elif self.end_attack_type == "LONG" and self.xp_level <= LEVEL_UPGRADES[0]: 
         self.current_attack_type = "MID"
         self.chase_distance = MID_ATTACK_DIST
     else: self.current_attack_type = self.end_attack_type
@@ -111,6 +114,10 @@ def change_attack_type(self):
     if self.end_attack_type == "MELEE" and self.xp_level >= LEVEL_UPGRADES[0]:
         self.current_attack_type = "MELEE"
         self.chase_distance = 0
+    elif self.end_attack_type == "LONG" and self.xp_level >= LEVEL_UPGRADES[0]:
+        self.current_attack_type = "LONG"
+        self.chase_distance = LONG_ATTACK_DIST
+
 
 
 ###============== EVOLUTION PATH ==============###
