@@ -1277,7 +1277,7 @@ def pauseMenu(game):
                     setting_vol = False
                     game.sound_manager.assignSlider(clicked, x_off, m_co)
                     game.sound_manager.assignVols()
-                    game.sound_manager.playSound("Select", game.user.pos)
+                    game.sound_manager.playSound("Select", game.camera.target.pos)
             elif ev.type == pygame.KEYDOWN:
                 if ev.key == pygame.K_F11: 
                     toggleFullscreen()
@@ -1489,8 +1489,8 @@ def main_loop(game_type = "Deathmatch", player_mode = "Spectator", game_teams = 
         cam_speed = 1
         camera.setTarget(list(game.bots)[spec_ind])
         
-    for bot in game.bots:
-        bot.addXP(randrange(0,100000))
+    # for bot in game.bots:
+    #     bot.addXP(randrange(0,100000))
     #set up final loop vars
     ticks = 0
     game_exit = False
@@ -1532,6 +1532,8 @@ def main_loop(game_type = "Deathmatch", player_mode = "Spectator", game_teams = 
                             camera.setTarget(spec_pos)
                         else:
                             free_cam = False
+                            nearest_bot = min(game.bots, key = lambda x : coDistance(spec_pos.pos, x.pos))
+                            spec_ind = list(game.bots).index(nearest_bot)
                             camera.setTarget(list(game.bots)[spec_ind])
                 else:
                     if ev.key in [pygame.K_LALT,pygame.K_RALT] and keys_pressed[pygame.K_F4]: pygame.quit(); quit()
