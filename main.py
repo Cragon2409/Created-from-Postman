@@ -217,8 +217,11 @@ class SoundManager:
         if self.music != None: self.music.set_volume(self.mus_vol_raw)
         for s in SOUNDS: SOUNDS[s].set_volume(self.sfx_vol_raw)
     def playSound(self,name,pos):
-        #FIXME check pos to check if sound should be played!
-        SOUNDS[name].play()
+        #plays sound if the source is on screen
+        tL = self.game.camera.dToR([0,0])
+        bR = self.game.camera.dToR([dw,dh])
+        if tL[0] <= pos[0] < bR[0] and tL[1] <= pos[1] < bR[1]:
+            SOUNDS[name].play()
     def pause(self):
         pygame.mixer.pause()
     def resume(self):
@@ -338,7 +341,14 @@ class CollisionObject:
         return nearby
     def checkCollisions(self):
         for col_obj in self.getNearbyEntities():
-            if (not (self.DRAW_CODE == DRW_PROJ_BLT and col_obj.DRAW_CODE == DRW_PROJ_BLT and self.owner == col_obj.owner)) and ([col_obj.DRAW_CODE, self.DRAW_CODE] == [DRW_PROJ_FLW, DRW_PROJ_FLW] or TEAM_NULL in [self.team, col_obj.team] or self.team != col_obj.team) and self.collide(col_obj):
+            if (
+                (not ([self.DRAW_CODE,col_obj.DRAW_CODE] == [DRW_PROJ_BLT,DRW_PROJ_BLT] and self.owner == col_obj.owner)) and #exclude bullets from the same team
+                    ([col_obj.DRAW_CODE, self.DRAW_CODE] == [DRW_PROJ_FLW, DRW_PROJ_FLW] or 
+                     (col_obj.DRAW_CODE in TANK_CODES and self.DRAW_CODE in TANK_CODES) or
+                     TEAM_NULL in [self.team, col_obj.team] or 
+                     self.team != col_obj.team) and #excludes objects of the same team, unless they are both followers or both tanks
+                self.collide(col_obj)
+                ):
                 if self.hitBy(col_obj): return True
         return False
     def checkAnyCollisions(self):
@@ -447,7 +457,7 @@ class Bullet(Projectile):
         self.pos = dA(self.pos,self.vel)
         self.vel = dSM(self.drag, self.vel)
         self.game.chunkManager.update_obj(self)
-        return vecMag(self.vel) < 0.1 or self.health == 0 #return true to kill
+        return vecMag(self.vel) < 0.01 or self.health == 0 #return true to kill
     
 class Follower(Projectile):
     DRAW_CODE = DRW_PROJ_FLW
@@ -511,7 +521,6 @@ class Follower(Projectile):
 
 PROJECTILE_TYPES = [Bullet, Follower] #TODO add mine type projectiles
 
-
 ### Tank Setup
 class Tank(CollisionObject):
     density = DNSTY_TANK
@@ -557,7 +566,7 @@ class Tank(CollisionObject):
                 any_shot = any_shot or shot
                 total_acc = dA(total_acc, acc)
             self.vel = dA(self.vel, total_acc)
-        if any_shot and self.DRAW_CODE == DRW_TANK_PLR: #FIXME enable for bots too! (and guardians)
+        if any_shot and self.DRAW_CODE in TANK_CODES:
             self.game.sound_manager.playSound("Shoot", self.pos)
     def killProj(self,proj):
         if proj.DRAW_CODE == DRW_PROJ_FLW: self.current_followers -= 1
@@ -597,7 +606,10 @@ class Tank(CollisionObject):
     def accelerate(self,di): #assumes normalised direction
         self.vel = dA(self.vel,dSM(self.move_speed,di))
     def hitBy(self,col_obj):
-        if not (col_obj.DRAW_CODE in [DRW_PROJ_BLT,DRW_PROJ_FLW] and col_obj in self.projs):
+        if col_obj.DRAW_CODE in TANK_CODES and self.team == col_obj.team and self.team != -1:
+            disp_vec = vecSub(dS(self.pos, col_obj.pos), TANK_DISP_VEL)
+            self.vel = dA(disp_vec, self.vel)
+        elif not (col_obj.DRAW_CODE in [DRW_PROJ_BLT,DRW_PROJ_FLW] and col_obj in self.projs):
             if col_obj.DRAW_CODE in [DRW_PROJ_BLT, DRW_PROJ_FLW]: self.last_hit = col_obj.owner
             elif col_obj.DRAW_CODE in TANK_CODES: self.last_hit = col_obj
             self.health = max(0, self.health - col_obj.col_dmg)
@@ -663,6 +675,9 @@ class Tank(CollisionObject):
         if self.regen_timer == 0:
             self.regen_timer = self.regen_ticks
             self.health = min(self.health+1,self.max_health)
+        
+        # if self.team != -1 and (circleInRect(self.pos,self.game.spawn_fields[self.team],self.radius) or any([circleInRect(self.pos, rect, self.radius) for c,rect in enumerate(self.game.guardian_areas) if self.game.guardians[c].team == self.team])): 
+        if self.team != -1 and circleInRect(self.pos,self.game.spawn_fields[self.team],self.radius): self.health = min(self.health+1, self.max_health) #heal tank if in spawn rect
 
         #update rot for bots
         self.orientation += self.ori_vel
@@ -754,7 +769,7 @@ class Bot(Tank):
         self.intro_func(self)
         self.upgrade_point_path = self.upgrade_levels_func(self,self.evolve_path)
     def kill(self):
-        #self.game.sound_manager.playSound("Death",self.pos) #FIXME uncomment
+        self.game.sound_manager.playSound("Death",self.pos)
         self.game.killBot(self)  
     def getFollowerInfo(self):
         return self.follower_move_pos, self.follower_move_code
@@ -1217,6 +1232,9 @@ class Camera:
 
 
         self.showOverlay(fps)
+
+        # p_shoot_co = dA(self.game.user.pos, ciS(self.game.user.turrets[0].length + calculate_geo_converge(self.game.user.bullet_speed, BULLET_DRAG),self.game.user.orientation))
+        # pygame.draw.circle(screen, red, dInt(self.rToD(p_shoot_co)), int(5*self.zoom))
         
         #2560 1440 DIMS
 

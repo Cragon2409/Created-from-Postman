@@ -239,6 +239,12 @@ def rectOverlapRect(rect_1, rect_2): return any([inRect(co,rect_1) for co in rec
 def roundNum(i_1, i_2):
     return (i_1//i_2)*i_2
 
+def calculate_geo_series(t_1, r, n):
+    return t_1*(r**n - 1)/(r - 1)
+
+def calculate_geo_converge(t_1, r):
+    return t_1 / (1 - r)
+
 WORD_LIST_1 = ["Cheese","Diamond","Fortnite","Roblox","Women","Men","Bannana","Pizza","Water",""]
 CONNECTIVE_LIST = ['','','-','_']
 WORD_LIST_2 = ["Lover","Hater","Haver","Player","Wanter","Pro","Expert","User","Consumer","Enjoyer", "God"]

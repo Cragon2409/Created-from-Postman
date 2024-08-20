@@ -61,7 +61,7 @@ class DummyPosition: #dummy position object made for bot AI code
         self.vel = [0,0]
 
 def get_nearby(self): return list(filter(lambda x: x != self and (x.DRAW_CODE in [DRW_FOOD, DRW_TANK_BOT, DRW_TANK_PLR]) and ( (not x.DRAW_CODE in TANK_CODES) or x.team == TEAM_NULL or x.team != self.team), self.game.chunkManager.getInRect(dA(self.pos, BOT_VIEW_RECT[:2]), dS(self.pos, BOT_VIEW_RECT[:2]))))
-
+def get_max_firing_dist(self): return max([t.length for t in self.turrets]) + calculate_geo_converge(self.bullet_speed, BULLET_DRAG)
 ###============== INTRO ==============###
 """
 Intro func gets called when the tank is first initialised. Gets called after evolve and before upgrade assignments.
@@ -80,21 +80,15 @@ def type_check_init(self):
         self.chase_distance = 0
     elif final_type in MID_RANGER_TYPES: 
         self.end_attack_type = "MID"
-        self.chase_distance = MID_ATTACK_DIST
+        self.chase_distance = get_max_firing_dist(self)*0.7
     elif final_type in LONG_RANGER_TYPES: 
         self.end_attack_type = "LONG"
-        self.chase_distance = LONG_ATTACK_DIST
+        self.chase_distance = get_max_firing_dist(self)*0.7
     elif final_type in SUMMONER_TYPES: 
         self.end_attack_type = "SUMMS"
         self.chase_distance = SUM_ATTACK_DIST
 
-    if self.end_attack_type == "MELEE" and self.xp_level <= LEVEL_UPGRADES[0]: 
-        self.current_attack_type = "MID"
-        self.chase_distance = MID_ATTACK_DIST
-    elif self.end_attack_type == "LONG" and self.xp_level <= LEVEL_UPGRADES[0]: 
-        self.current_attack_type = "MID"
-        self.chase_distance = MID_ATTACK_DIST
-    else: self.current_attack_type = self.end_attack_type
+    change_attack_type(self)
 
     self.fight_timer = 0
     self.running_away = False
@@ -111,13 +105,19 @@ def no_react(self):
     return False
 
 def change_attack_type(self):
-    if self.end_attack_type == "MELEE" and self.xp_level >= LEVEL_UPGRADES[0]:
+    c_type = self.tank_type
+    if (self.end_attack_type == "MELEE" and c_type in PSUEDO_MELEE_TYPES) or c_type in MELEE_TYPES: 
         self.current_attack_type = "MELEE"
         self.chase_distance = 0
-    elif self.end_attack_type == "LONG" and self.xp_level >= LEVEL_UPGRADES[0]:
+    elif c_type in MID_RANGER_TYPES: 
+        self.current_attack_type = "MID"
+        self.chase_distance = get_max_firing_dist(self)*0.7
+    elif c_type in LONG_RANGER_TYPES: 
         self.current_attack_type = "LONG"
-        self.chase_distance = LONG_ATTACK_DIST
-
+        self.chase_distance = get_max_firing_dist(self)*0.7
+    elif c_type in SUMMONER_TYPES: 
+        self.current_attack_type = "SUMMS"
+        self.chase_distance = SUM_ATTACK_DIST
 
 
 ###============== EVOLUTION PATH ==============###
@@ -230,7 +230,6 @@ def guardian_attack_nearest_target(self, ticks):
 MAX_FIGHT_TIMER = FPS*30
 
 def attack_type_risks(self, ticks):
-    in_fight = False
     if ticks % 30 == 0:
         #FIXME make paths not go into food!
         self.running_away = False
@@ -245,10 +244,8 @@ def attack_type_risks(self, ticks):
                 away_vec = vecSub(dS(self.pos, scariest_t.pos),-1000)
                 self.target = DummyPosition(dS(self.pos,away_vec)) #run away!
                 self.running_away = True
-                in_fight = True
             else: 
                 self.target = self.target = min(nearby_enemies, key = lambda x : coDistance(x.pos, self.pos))
-                in_fight = True
 
         elif nearby_food != [] and not (in_danger and self.current_attack_type == "MELEE"): self.target = min(nearby_food, key = lambda x : coDistance(x.pos, self.pos))
 
@@ -274,10 +271,9 @@ def attack_type_risks(self, ticks):
         else:
             self.auto_fire = False
 
-    if self.target.DRAW_CODE in TANK_CODES or self.running_away: in_fight = True
-
-    if in_fight: self.fight_timer += 1
+    if self.target.DRAW_CODE in TANK_CODES or self.running_away: self.fight_timer += 1
     else: self.fight_timer = 0
+
 
 
 
