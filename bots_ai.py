@@ -118,7 +118,6 @@ def change_attack_type(self):
 Gets called when the tank first starts, and it chooses the evolution path that the tank will follow for the rest of the game. Gets called before the intro func and the upgrade levels func.
 """
 def random_path(self,starting_from="Basic"):
-    return ["Basic", "Machine Gun", "Cannon", "Mortar"] #FIXME remove
     path = [starting_from]
     current_type = starting_from
     while current_type in TANK_UPGRADE_TREE:
