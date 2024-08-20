@@ -132,6 +132,7 @@ def syncGraphicsConstants(fullscreen=True,changing_mode=True):
 syncGraphicsConstants(True, True)
 FULLSCREEN = True
 
+
 def toggleFullscreen():
     global FULLSCREEN
     FULLSCREEN = not FULLSCREEN
@@ -271,13 +272,8 @@ class ChunkManager:
             if not new_chunk_st in self.chunk_dict: self.chunk_dict[new_chunk_st] = [col_obj]
             else: self.chunk_dict[new_chunk_st].append(col_obj)
     def remove(self, col_obj):
-        try:
-            self.chunk_dict[col_obj.chunk_st].remove(col_obj) #remove old chunk entity
-            if self.chunk_dict[col_obj.chunk_st] == []: del self.chunk_dict[col_obj.chunk_st]
-        except:
-            print("error found!",col_obj)
-            print(col_obj.owner)
-            1/0
+        self.chunk_dict[col_obj.chunk_st].remove(col_obj) #remove old chunk entity
+        if self.chunk_dict[col_obj.chunk_st] == []: del self.chunk_dict[col_obj.chunk_st]
     def posToChunk(self, pos):
         return str(int(pos[0]//CHUNK_SIZE)) + '_' + str(int(pos[1]//CHUNK_SIZE))
     def posToChunkNum(self, pos):
@@ -308,6 +304,10 @@ class ChunkManager:
                 entities += [col_obj for col_obj in self.getChunk(chunk_st) if not col_obj in entities]
         return entities
          
+def anyBreak(li, func):
+    for i in li:
+        if func(i): return True
+    return False
 
 class CollisionObject:
     #vars: mass, density, pos, vel, DRAW_CODE
@@ -341,10 +341,15 @@ class CollisionObject:
             if (not (self.DRAW_CODE == DRW_PROJ_BLT and col_obj.DRAW_CODE == DRW_PROJ_BLT and self.owner == col_obj.owner)) and ([col_obj.DRAW_CODE, self.DRAW_CODE] == [DRW_PROJ_FLW, DRW_PROJ_FLW] or TEAM_NULL in [self.team, col_obj.team] or self.team != col_obj.team) and self.collide(col_obj):
                 if self.hitBy(col_obj): return True
         return False
+    def checkAnyCollisions(self):
+        for col_obj in self.getNearbyEntities():
+            if (not (self.DRAW_CODE == DRW_PROJ_BLT and col_obj.DRAW_CODE == DRW_PROJ_BLT and self.owner == col_obj.owner)) and ([col_obj.DRAW_CODE, self.DRAW_CODE] == [DRW_PROJ_FLW, DRW_PROJ_FLW] or TEAM_NULL in [self.team, col_obj.team] or self.team != col_obj.team) and self.collide(col_obj):
+                return True
+        return False
     def collide(self, col_obj):
         if self.DRAW_CODE in POLY_CODES:
             if col_obj.DRAW_CODE in POLY_CODES: #polygon to polygon
-                return (coDistance(self.pos,col_obj.pos) <= self.r + col_obj.r) and (pointInPoly(self.pos, col_obj.col_poly, col_obj.pos, col_obj.col_r, col_obj.col_rads) or any([pointInPoly(co,col_obj.col_poly, col_obj.pos, col_obj.col_r, col_obj.col_rads) for co in self.poly]) or any([pointInPoly(co,self.col_poly, self.pos, self.col_r, self.col_rads ) for co in col_obj.poly]))
+                return (coDistance(self.pos,col_obj.pos) <= self.r + col_obj.r) and (pointInPoly(self.pos, col_obj.col_poly, col_obj.pos, col_obj.col_r, col_obj.col_rads) or anyBreak(self.poly, lambda co : pointInPoly(co,col_obj.col_poly, col_obj.pos, col_obj.col_r, col_obj.col_rads)) or anyBreak(col_obj.poly, lambda co : pointInPoly(co,self.col_poly, self.pos, self.col_r, self.col_rads )))
             elif col_obj.DRAW_CODE in CIRCLE_CODES: #polygon to circle
                 return (coDistance(self.pos, col_obj.pos) <= self.r + col_obj.radius) and (circleInPoly(col_obj.pos,col_obj.radius, self.poly, self.col_poly, self.pos, self.col_r, self.col_rads))
                 # return (coDistance(self.pos, col_obj.pos) <= self.r + col_obj.radius) 
@@ -719,7 +724,7 @@ class Bot(Tank):
         if guardian:
             start_type = choice(GUARDIAN_TANK_NAMES)
             super().__init__(game, start_pos, start_type)
-            self.intro_func, self.upgrade_levels_func, self.evolve_path_func, self.update_func = BOT_AI_FUNCS["Guardian"]
+            self.intro_func, self.on_evolve, self.upgrade_levels_func, self.evolve_path_func, self.update_func = BOT_AI_FUNCS["Guardian"]
             self.xp_level = MAX_LEVEL
             self.name = ""
             self.col = GUARDIAN_NEUTRAL_COL
@@ -732,7 +737,7 @@ class Bot(Tank):
             self.name = genUsername()  
             self.col = BOT_COL if team == TEAM_NULL else TEAM_COLOURS[team]
             self.team = team
-            self.intro_func, self.upgrade_levels_func, self.evolve_path_func, self.update_func = BOT_AI_FUNCS["Basic Random"]
+            self.intro_func, self.on_evolve, self.upgrade_levels_func, self.evolve_path_func, self.update_func = BOT_AI_FUNCS["Min Viable"]
 
         self.target = DummyPosition(self.game.randomPos())
         self.follower_move_code = 0
@@ -741,9 +746,9 @@ class Bot(Tank):
         self.guardian = guardian
 
         # Initialise AI
-        self.intro_func(self,start_type)
-        self.evolve_path = self.evolve_path_func()
-        self.upgrade_point_path = self.upgrade_levels_func(self.evolve_path)
+        self.evolve_path = self.evolve_path_func(self)
+        self.intro_func(self)
+        self.upgrade_point_path = self.upgrade_levels_func(self,self.evolve_path)
     def kill(self):
         #self.game.sound_manager.playSound("Death",self.pos) #FIXME uncomment
         self.game.killBot(self)  
@@ -761,18 +766,14 @@ class Bot(Tank):
             self.upgrade_points -= 1
         while self.evolve_upgrade_points > 0:
             self.changeTankType(self.evolve_path[self.evolve_path.index(self.tank_type)+1])
+            self.on_evolve(self)
             self.evolve_upgrade_points -= 1
-            self.intro_func(self, self.tank_type)
     def upgradeStat(self,stat_ind):
-        if self.upgrade_points > 0:
-            self.tank_stats[stat_ind] += 1
-            self.upgrade_points -= 1
-            self.assignStats()
-            return True
-        return False
-    def faceTowards(self,r_co):
+        self.tank_stats[stat_ind] += 1
+        self.assignStats()
+    def faceTowards(self,r_co,r_add=0):
 
-        t = twoCoAngle(self.pos, r_co)
+        t = (twoCoAngle(self.pos, r_co) + r_add) % (2*pi)
         p = self.orientation
         right_rot = (t-p)%(2*pi)
         left_rot = (p-t)%(2*pi)
@@ -929,7 +930,7 @@ class Game:
         return [randrange(-MAP_CONSTANT+border, MAP_CONSTANT-border), randrange(-MAP_CONSTANT+border, MAP_CONSTANT-border)]
     def generate_food(self):
         tries = 0
-        while ((tries == 0) or (not inRect(new_food.pos, MAP_RECT)) or (new_food.checkCollisions()) or any([inRect(new_food.pos,rect) for rect in self.spawn_fields])) and tries < 100:
+        while ((tries == 0) or (not inRect(new_food.pos, MAP_RECT)) or (new_food.checkAnyCollisions()) or any([inRect(new_food.pos,rect) for rect in self.spawn_fields])) and tries < 100:
             if tries != 0: new_food.colKill()
             if randrange(0,100) < FOOD_HUB_CHANCE:
                 hub = food_hubs[choice(food_hubs_w_inds)]
@@ -1116,6 +1117,7 @@ class Camera:
             return True
         return False   
     def showOverlay(self,fps=0):
+        keys_pressed = pygame.key.get_pressed()
         #minimap
         pygame.draw.rect(screen,white,MINIMAP_POS + [110,110])
         for c,rect in enumerate(self.game.spawn_fields): pygame.draw.rect(screen, TEAM_MINIMAP_COLS[c], self.minimapTransformTight(rect[:2])+dSM(110/(MAP_CONSTANT*2),rect[2:]))
@@ -1127,20 +1129,6 @@ class Camera:
         pygame.draw.polygon(screen, black, [dLimit(self.minimapTransform(self.dToR(co)),minimap_bR,MINIMAP_POS) for co in S_CORNER_POS], 1)
 
         if self.player_mode != "Spectator":
-            #xp bar
-            pygame.draw.rect(screen,black,[XPB_POS,dh-50,XPB_LENGTH,30])
-            pygame.draw.rect(screen,yellow,[XPB_POS+2,dh-48,(XPB_LENGTH-4)*min(self.user.xp_points/self.user.xp_points_needed,1),26])
-            messageDisplay("Lvl " + str(self.user.xp_level),[120,20,230],[dw//2,dh-35])
-
-            #player stats
-            if self.user.upgrade_points > 0 or pygame.key.get_pressed()[pygame.K_TAB]:
-                if self.user.upgrade_points > 0: simpleText("Points: " + str(self.user.upgrade_points), PLAYER_STATS_POINTS_POS, colour=black)
-                for c,rect in enumerate(PLAYER_STATS_RECTS):
-                    pygame.draw.rect(screen,black,rect, border_radius=3)
-                    pygame.draw.rect(screen,[180]*3,rect,2, border_radius=3)
-                    for c_1 in range(self.user.tank_stats[c]): pygame.draw.rect(screen,[160,30,30],[rect[0]+5+25*c_1,rect[1]+5,20,20])
-                    messageDisplay(str(TANK_STATS_NAMES[c]),white,rectCent(rect))
-
             #evolve previews
             if self.user.evolve_upgrade_points > 0:
                 tank_evolve_names = TANK_UPGRADE_TREE[self.user.tank_type] if self.user.tank_type in TANK_UPGRADE_TREE else []
@@ -1156,7 +1144,27 @@ class Camera:
                     self.renderObj(preview_tank,override_zoom=TANK_PREVIEW_ZOOM[name])
 
                     messageDisplay(name,white,dA(rectCent(rect),[0,-rect[3]//3]))
+            
+            target = self.user
+        else: target = self.target if self.target.DRAW_CODE != DRW_NONE else None
+
+        if target != None:
+            #xp bar
+            pygame.draw.rect(screen,black,[XPB_POS,dh-50,XPB_LENGTH,30])
+            pygame.draw.rect(screen,yellow,[XPB_POS+2,dh-48,(XPB_LENGTH-4)*min(target.xp_points/target.xp_points_needed,1),26])
+            messageDisplay("Lvl " + str(target.xp_level),[120,20,230],[dw//2,dh-35])
+
+            #player stats
+            if target.upgrade_points > 0 or keys_pressed[pygame.K_TAB]:
+                if target.upgrade_points > 0: simpleText("Points: " + str(target.upgrade_points), PLAYER_STATS_POINTS_POS, colour=black)
+                for c,rect in enumerate(PLAYER_STATS_RECTS):
+                    pygame.draw.rect(screen,black,rect, border_radius=3)
+                    pygame.draw.rect(screen,[180]*3,rect,2, border_radius=3)
+                    for c_1 in range(target.tank_stats[c]): pygame.draw.rect(screen,[160,30,30],[rect[0]+5+25*c_1,rect[1]+5,20,20])
+                    messageDisplay(str(TANK_STATS_NAMES[c]),white,rectCent(rect))
+
         
+
         #show message log
         msgs = len(self.game.message_log)
         for c,msg in enumerate(self.game.message_log):
@@ -1481,7 +1489,8 @@ def main_loop(game_type = "Deathmatch", player_mode = "Spectator", game_teams = 
         cam_speed = 1
         camera.setTarget(list(game.bots)[spec_ind])
         
-        
+    for bot in game.bots:
+        bot.addXP(randrange(0,100000))
     #set up final loop vars
     ticks = 0
     game_exit = False
@@ -1547,7 +1556,7 @@ def main_loop(game_type = "Deathmatch", player_mode = "Spectator", game_teams = 
 
         PDU()
 
-        clock.tick(60); ticks += 1
+        clock.tick(FPS); ticks += 1
     
     sound_mngr.stop()
 

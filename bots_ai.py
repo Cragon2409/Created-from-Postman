@@ -60,15 +60,65 @@ class DummyPosition: #dummy position object made for bot AI code
         self.pos = pos
         self.vel = [0,0]
 
+def get_nearby(self): return list(filter(lambda x: x != self and (x.DRAW_CODE in [DRW_FOOD, DRW_TANK_BOT, DRW_TANK_PLR]) and ( (not x.DRAW_CODE in TANK_CODES) or x.team == TEAM_NULL or x.team != self.team), self.game.chunkManager.getInRect(dA(self.pos, BOT_VIEW_RECT[:2]), dS(self.pos, BOT_VIEW_RECT[:2]))))
+
 ###============== INTRO ==============###
-def basic_init(self,tank_type=None):
+"""
+Intro func gets called when the tank is first initialised. Gets called after evolve and before upgrade assignments.
+"""
+def basic_init(self):
     self.auto_fire = False
     self.follow_move_code = 0
 
+MID_ATTACK_DIST = 150
+LONG_ATTACK_DIST = 250
+SUM_ATTACK_DIST = 300
+def type_check_init(self):
+    final_type = self.evolve_path[-1]
+    if (final_type in PSUEDO_MELEE_TYPES and randrange(0,100) <= 20) or final_type in MELEE_TYPES: 
+        self.end_attack_type = "MELEE"
+        self.chase_distance = 0
+    elif final_type in MID_RANGER_TYPES: 
+        self.end_attack_type = "MID"
+        self.chase_distance = MID_ATTACK_DIST
+    elif final_type in LONG_RANGER_TYPES: 
+        self.end_attack_type = "LONG"
+        self.chase_distance = LONG_ATTACK_DIST
+    elif final_type in SUMMONER_TYPES: 
+        self.end_attack_type = "SUMMS"
+        self.chase_distance = SUM_ATTACK_DIST
+
+    if self.end_attack_type == "MELEE" and self.xp_level >= LEVEL_UPGRADES[0]: 
+        self.current_attack_type = "MID"
+        self.chase_distance = MID_ATTACK_DIST
+    else: self.current_attack_type = self.end_attack_type
+
+    self.fight_timer = 0
+    self.running_away = False
+
+    
+
+
+###============== ON EVOLVE ==============###
+"""
+On evolve func gets called whenever the tank evolves and changes type. 
+"""
+
+def no_react(self):
+    return False
+
+def change_attack_type(self):
+    if self.end_attack_type == "MELEE" and self.xp_level >= LEVEL_UPGRADES[0]:
+        self.current_attack_type = "MELEE"
+        self.chase_distance = 0
 
 
 ###============== EVOLUTION PATH ==============###
-def random_path(starting_from="Basic"):
+"""
+Gets called when the tank first starts, and it chooses the evolution path that the tank will follow for the rest of the game. Gets called before the intro func and the upgrade levels func.
+"""
+def random_path(self,starting_from="Basic"):
+    return ["Basic", "Machine Gun", "Cannon", "Mortar"] #FIXME remove
     path = [starting_from]
     current_type = starting_from
     while current_type in TANK_UPGRADE_TREE:
@@ -77,17 +127,48 @@ def random_path(starting_from="Basic"):
     return path
 
 ###============== UPGRADE LEVELS ==============###
-def random_levels(evolution_path):
+"""
+Gets called when the tank first starts, chooses the upgrades it will take. Gets called after the evolution and intro funcs.
+"""
+def random_levels(self,evolution_path):
     level_upgrades = []
     for _ in range(MAX_LEVEL):
         try_upgrade = randrange(0,TANK_STATS_LEN)
-        while level_upgrades.count(try_upgrade) > MAX_STAT_LVL: try_upgrade = randrange(0,TANK_STATS_LEN)
+        while level_upgrades.count(try_upgrade) >= MAX_STAT_LVL: try_upgrade = randrange(0,TANK_STATS_LEN)
+        level_upgrades.append(try_upgrade)
+    return level_upgrades
+
+LEVEL_DISTRS = {
+    #Max Health, Health Regeneration, Player Speed, Body Damage,    Bullet Damage, Bullet Endurance, Bullet Speed, Reload
+    "MELEE" : [8,8,8,10, 1,1,1,1],
+    "MID"   : [2,3,5,1, 7,7,6,4],
+    "LONG"  : [2,1,3,1, 6,7,8,2],
+    "SUMMS" : [2,1,2,1, 6,7,8,9]
+}
+def final_levels(self,evolution_path): #assumes type_check_init was already run to define self.end_attack_type
+    inds = []
+    for c,i in enumerate(LEVEL_DISTRS[self.end_attack_type]): inds += [c]*i
+
+    level_upgrades = []
+    for _ in range(MAX_LEVEL):
+        try_upgrade = choice(inds)
+        while level_upgrades.count(try_upgrade) >= MAX_STAT_LVL: try_upgrade = choice(inds)
         level_upgrades.append(try_upgrade)
     return level_upgrades
 
 
 
+
 ###============== UPDATE FUNCS ==============###
+"""
+Gets called every update of the bot, is given the ticks of the game.
+Expected to use:
+    -get_nearby(self) -> to find nearby entities. 
+    
+    -self.faceTowards(target_pos) -> to set facing direction
+    -self.shoot() or self.auto_fire = True/False -> to set if the bot should shoot
+    -self.accelerate(normalised_vec) -> to move the bot
+"""
 
 def attack_nearest_target(self, ticks): 
     """
@@ -95,7 +176,7 @@ def attack_nearest_target(self, ticks):
     """
     # Pick target
     if ticks % 30 == 0: #FIXME report when target dies and remove reference
-        nearby_ents = list(filter(lambda x: x != self and (x.DRAW_CODE in [DRW_FOOD, DRW_TANK_BOT, DRW_TANK_PLR]) and ( (not x.DRAW_CODE in TANK_CODES) or x.team == TEAM_NULL or x.team != self.team), self.game.chunkManager.getInRect(dA(self.pos, BOT_VIEW_RECT[:2]), dS(self.pos, BOT_VIEW_RECT[:2]))))
+        nearby_ents = get_nearby(self)
         if nearby_ents != []: self.target = min(nearby_ents, key = lambda x : coDistance(x.pos, self.pos))
         elif self.target.DRAW_CODE != DRW_NONE or coDistance(self.pos, self.target.pos) < self.chase_distance: self.target = DummyPosition(self.game.randomPos())
 
@@ -114,18 +195,6 @@ def attack_nearest_target(self, ticks):
         self.follower_move_pos =  dA(self.pos, vecSub(dS(self.target.pos, self.pos), self.radius*4 + self.current_followers*0.5))
         self.auto_fire = False
         self.accelerate(vecSub(dS(self.target.pos,self.pos),1))
-
-    #if randrange(0,50) == 0: self.addXP(1000) #FIXME remove
-    
-    # # Check for level ups
-    # while (self.upgrade_points > 0):
-    #     stat_ind = randrange(0,TANK_STATS_LEN)
-    #     while self.tank_stats[stat_ind] >= MAX_STAT_LVL: stat_ind = randrange(0,TANK_STATS_LEN)
-    #     self.upgradeStat(stat_ind)
-    # while self.evolve_upgrade_points > 0:
-    #     if self.tank_type in TANK_UPGRADE_TREE: 
-    #         self.changeTankType(choice(TANK_UPGRADE_TREE[self.tank_type]))
-    #         self.evolve_upgrade_points -= 1
 
 
 def guardian_attack_nearest_target(self, ticks): 
@@ -152,10 +221,63 @@ def guardian_attack_nearest_target(self, ticks):
     else:
         self.auto_fire = False
 
+MAX_FIGHT_TIMER = FPS*30
+
+def attack_type_risks(self, ticks):
+    in_fight = False
+    if ticks % 30 == 0:
+        #FIXME make paths not go into food!
+        self.running_away = False
+        nearby_ents = get_nearby(self) 
+        nearby_enemies = [col_obj for col_obj in nearby_ents if col_obj.DRAW_CODE in TANK_CODES]
+        nearby_food = [col_obj for col_obj in nearby_ents if col_obj.DRAW_CODE == DRW_FOOD]
+        in_danger = (self.current_attack_type == "MELEE" and self.health <= self.max_health/2) or (self.current_attack_type != "MELEE" and self.health <= self.max_health/5)
+        # if in_danger and self.current_attack_type == "MELEE": print("danger!",self.health, self.max_health, self.name)
+        if nearby_enemies != []:
+            if any([t.xp_level >= self.xp_level+5 for t in nearby_enemies]) or in_danger or self.fight_timer >= MAX_FIGHT_TIMER: 
+                scariest_t = max(nearby_enemies, key = lambda x : x.xp_level)
+                away_vec = vecSub(dS(self.pos, scariest_t.pos),-1000)
+                self.target = DummyPosition(dS(self.pos,away_vec)) #run away!
+                self.running_away = True
+                in_fight = True
+            else: 
+                self.target = self.target = min(nearby_enemies, key = lambda x : coDistance(x.pos, self.pos))
+                in_fight = True
+
+        elif nearby_food != [] and not (in_danger and self.current_attack_type == "MELEE"): self.target = min(nearby_food, key = lambda x : coDistance(x.pos, self.pos))
+
+        elif self.target.DRAW_CODE != DRW_NONE or coDistance(self.pos, self.target.pos) < self.chase_distance+20: self.target = DummyPosition(self.game.randomPos())
+
+    # Look at target
+    if self.current_attack_type == "MELEE": self.faceTowards(self.target.pos,pi)
+    else: self.faceTowards(self.target.pos)
+
+    # Navigate to/Shoot at target
+    dist = coDistance(self.pos, self.target.pos)
+    if dist <= self.chase_distance:
+        self.auto_fire = True
+        self.follower_move_code = 0 #attack/hover code
+        if self.target.DRAW_CODE != DRW_NONE: self.follower_move_pos = self.target.pos
+        else: self.follower_move_pos =  dA(self.pos, vecSub(dS(self.target.pos, self.pos), self.radius*4 + self.current_followers*0.5))
+    else:
+        self.follower_move_code = 0#attack/hover code
+        self.follower_move_pos =  dA(self.pos, vecSub(dS(self.target.pos, self.pos), self.radius*4 + self.current_followers*0.5))
+        self.accelerate(vecSub(dS(self.target.pos,self.pos),1))
+        if self.current_attack_type == "MELEE": #use gun to navigate as a melee tank
+            self.auto_fire = True
+        else:
+            self.auto_fire = False
+
+    if self.target.DRAW_CODE in TANK_CODES or self.running_away: in_fight = True
+
+    if in_fight: self.fight_timer += 1
+    else: self.fight_timer = 0
 
 
 
-BOT_AI_FUNCS = { #intro func, choose upgrade levels, choose evolution path, update func
-    "Basic Random"  : (basic_init, random_levels, random_path, attack_nearest_target),
-    "Guardian"      : (basic_init, random_levels, random_path, guardian_attack_nearest_target)
+
+BOT_AI_FUNCS = { #intro func, on evolve func, choose upgrade levels, choose evolution path, update func
+    "Basic Random"  : (basic_init, no_react, random_levels, random_path, attack_nearest_target),
+    "Guardian"      : (basic_init, no_react, random_levels, random_path, guardian_attack_nearest_target),
+    "Min Viable"    : (type_check_init, change_attack_type, final_levels, random_path, attack_type_risks)
 }

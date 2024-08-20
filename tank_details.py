@@ -131,6 +131,8 @@ MID_RANGER_TYPES = ["Basic", "Flank", "Machine Gun", "Twin", "Quad", "Double Twi
 LONG_RANGER_TYPES = ["Sniper", "Hunter", "Stalker"]
 SUMMONER_TYPES = ["Overseer", "Battleship", "Hybrid"]
 MELEE_TYPES = ["Boxer"]
+PSUEDO_MELEE_TYPES = ["Machine Gun", "Cannon", "Mortar"]
+
 
 TANK_TIER_0 = ["Basic"]
 TANK_TIER_1 = ["Flank", "Machine Gun", "Twin", "Sniper"]
