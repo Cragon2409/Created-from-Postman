@@ -21,8 +21,7 @@ pygame.init()
 
 #change this to determine if the game starts on fullscreen
 
-SMALL_WINDOW_SIZE = [1920,1080]
-
+SMALL_WINDOW_SIZE = [1400,800]
 screen = pygame.display.set_mode(SMALL_WINDOW_SIZE,pygame.RESIZABLE)
 dw,dh = pygame.display.get_surface().get_size()
 
@@ -77,6 +76,7 @@ def syncGraphicsConstants(fullscreen=True,changing_mode=True):
         if fullscreen: screen = pygame.display.set_mode((0,0),pygame.FULLSCREEN)
         else: screen = pygame.display.set_mode(SMALL_WINDOW_SIZE, pygame.RESIZABLE)
     dw,dh = pygame.display.get_surface().get_size()
+    print(fullscreen, dw,dh)
     S_CENT = [dw//2, dh//2]
     S_RECT = [0,0,dw,dh]
     EX_MARGIN = 300
@@ -999,6 +999,28 @@ class Game:
                         self.sound_manager.playSound("Evolve", self.user.pos)
 
             if not button_clicked: self.user.onClick(m_co)
+    def onKey(self, key, keys_pressed):
+        if self.user != None:
+            if self.user.evolve_upgrade_points > 0:
+                if keys_pressed[pygame.K_LSHIFT] or keys_pressed[pygame.K_RSHIFT]:
+                    tank_evolve_names = TANK_UPGRADE_TREE[self.user.tank_type]
+                    key_num = key - pygame.K_1
+                    if key_num < len(tank_evolve_names):
+                        self.user.evolve_upgrade_points -= 1
+                        self.user.changeTankType(tank_evolve_names[key_num])
+                        self.sound_manager.playSound("Evolve", self.user.pos)
+                        return True
+            if self.user.upgrade_points > 0:
+                key_num = key - pygame.K_1
+                if key_num < TANK_STATS_LEN and self.user.tank_stats[key_num] < MAX_TANK_UPGRADE:
+                    self.user.upgrade_points -= 1
+                    self.user.tank_stats[key_num] += 1
+                    self.user.assignStats()
+                    self.sound_manager.playSound("Select", self.user.pos)
+                    return True
+                        
+
+        return False
     def addMessage(self,txt,col,duration):
         self.message_log.append([txt,col,duration])
     def genLeaderboard(self):
@@ -1563,6 +1585,8 @@ def main_loop(game_type = "Deathmatch", player_mode = "Spectator", game_teams = 
                             nearest_bot = min(game.bots, key = lambda x : coDistance(spec_pos.pos, x.pos))
                             spec_ind = list(game.bots).index(nearest_bot)
                             camera.setTarget(list(game.bots)[spec_ind])
+                elif game.onKey(ev.key, keys_pressed):
+                    pass
                 else:
                     if ev.key in [pygame.K_LALT,pygame.K_RALT] and keys_pressed[pygame.K_F4]: pygame.quit(); quit()
                     else: user.onPress(ev.key)
