@@ -76,7 +76,6 @@ def syncGraphicsConstants(fullscreen=True,changing_mode=True):
         if fullscreen: screen = pygame.display.set_mode((0,0),pygame.FULLSCREEN)
         else: screen = pygame.display.set_mode(SMALL_WINDOW_SIZE, pygame.RESIZABLE)
     dw,dh = pygame.display.get_surface().get_size()
-    print(fullscreen, dw,dh)
     S_CENT = [dw//2, dh//2]
     S_RECT = [0,0,dw,dh]
     EX_MARGIN = 300
@@ -905,6 +904,7 @@ class Game:
                 for _ in range(STATIC_BOTS_NUM//teams): self.generate_bot(team=t)
 
         self.message_log = [["Welcome to the game!", black, 180]]#[ [msg_string, col, ticks], ...]
+        self.game_over = True
     def update(self,ticks):
         self.chunkManager.runCollisions() #update collisions
 
@@ -936,7 +936,10 @@ class Game:
         for ind in to_remove[::-1]: del self.message_log[ind]
 
         #update leaderboard every 5 seconds
-        if (ticks%300) == 0: self.genLeaderboard()
+        if (ticks%300) == 0: 
+            self.genLeaderboard()
+            if self.mode == "Area Capture" and not self.game_over and any([p>MAX_AREA_TICKS for p in self.team_control_progress]):
+                self.endGame(max(list(range(self.teams)), key=lambda ind : self.team_control_progress[ind]))
     def killFood(self,f):
         self.food_amount -= 1
         self.generate_food()
@@ -1031,6 +1034,10 @@ class Game:
         elif player_rank+2 >= sorted_len: self.leaderboard = [[sorted_tanks[c].name, int(sorted_tanks[c].xp_points_total), c+1] for c in range(LEADERBOARD_LEN - 4)] + [None] + [[sorted_tanks[c].name, int(sorted_tanks[c].xp_points_total), c+1] for c in range(sorted_len-4,sorted_len)]
         else: self.leaderboard = [[sorted_tanks[c].name, int(sorted_tanks[c].xp_points_total), c+1] for c in range(LEADERBOARD_LEN - 4)] + [None] + [[sorted_tanks[c].name, int(sorted_tanks[c].xp_points_total), c+1] for c in range(player_rank-2,player_rank+1)]
         self.leaderboard = self.leaderboard[::-1]
+    def endGame(self,winner):
+        #FIXME make team name visible instead of number
+        self.addMessage("Team " + str(winner) + " won!",TEAM_COLOURS[winner], 18000)
+        self.addMessage("Prepare for closing.",TEAM_COLOURS[winner], 18000)
 ### Camera Object
 
 
@@ -1209,6 +1216,7 @@ class Camera:
                     pygame.draw.rect(screen,[180]*3,rect,2, border_radius=3)
                     for c_1 in range(target.tank_stats[c]): pygame.draw.rect(screen,[160,30,30],[rect[0]+5+25*c_1,rect[1]+5,20,20])
                     messageDisplay(str(TANK_STATS_NAMES[c]),white,rectCent(rect))
+                    messageDisplay(str(c+1), white, dA(rect[:2],[8,rect[3]//2]))
 
         
 

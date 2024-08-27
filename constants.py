@@ -138,7 +138,7 @@ HB_HEIGHT = 3
 
 TRI_COEFF = math.sqrt(3)/4
 
-TANK_STATS_NAMES = ["Max Health", "Health Regeneration", "Player Speed", "Body Damage", "Bullet Damage", "Bullet Endurance", "Bullet Speed", "Reload"]
+TANK_STATS_NAMES = ["Max Health", "Health Regen", "Player Speed", "Body Damage", "Bullet Damage", "Bullet Pen", "Bullet Speed", "Reload"]
 TANK_STATS_LEN = len(TANK_STATS_NAMES)
 
 PLAYER_EVOLVE_SQUARES = [[10+x*160,10+y*160,150,150] for x,y in [(0,0),(0,1),(1,0),(1,1)]]
