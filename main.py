@@ -904,7 +904,7 @@ class Game:
                 for _ in range(STATIC_BOTS_NUM//teams): self.generate_bot(team=t)
 
         self.message_log = [["Welcome to the game!", black, 180]]#[ [msg_string, col, ticks], ...]
-        self.game_over = True
+        self.game_over = False
     def update(self,ticks):
         self.chunkManager.runCollisions() #update collisions
 
@@ -938,7 +938,7 @@ class Game:
         #update leaderboard every 5 seconds
         if (ticks%300) == 0: 
             self.genLeaderboard()
-            if self.mode == "Area Capture" and not self.game_over and any([p>MAX_AREA_TICKS for p in self.team_control_progress]):
+            if self.mode == "Area Capture" and not self.game_over and any([p>=MAX_AREA_TICKS for p in self.team_control_progress]):
                 self.endGame(max(list(range(self.teams)), key=lambda ind : self.team_control_progress[ind]))
     def killFood(self,f):
         self.food_amount -= 1
@@ -1038,6 +1038,10 @@ class Game:
         #FIXME make team name visible instead of number
         self.addMessage("Team " + str(winner) + " won!",TEAM_COLOURS[winner], 18000)
         self.addMessage("Prepare for closing.",TEAM_COLOURS[winner], 18000)
+        self.game_over = True
+        #FIXME spawn arena closers
+
+
 ### Camera Object
 
 
