@@ -1385,7 +1385,7 @@ class Menu:
         self.in_game_buttons = [quit_button, pause_button]
         self.menu_buttons = [quit_button, start_button]
 
-        self.mode_options = ["Deathmatch", "Area Capture", "Rogue"]
+        self.mode_options = ["Deathmatch", "Area Capture"]
         self.type_options = ["Player", "Spectator", "Pro", "God"]
         self.team_options = ["0","2","4"]
 
@@ -1423,15 +1423,13 @@ class Menu:
                                 if inRect(m_co, left_option_rects[c]): 
                                     self.option_inds[c] = (self.option_inds[c]-1)%(len(self.option_strings[c]))
                                     if c == 0:
-                                        if self.option_inds[0] == 2: self.team_options = ["0"]; self.option_inds[2] = 0 #Rogue
-                                        elif self.option_inds[0] == 1:  self.team_options = ["2","4"]; self.option_inds[2] = (self.option_inds[2]+1)%2 #Area Capture
+                                        if self.option_inds[0] == 1:  self.team_options = ["2","4"]; self.option_inds[2] = (self.option_inds[2]+1)%2 #Area Capture
                                         else: self.team_options = ["0","2","4"] #TDM
                                         self.option_strings[2] = self.team_options
                                 elif inRect(m_co, right_option_rects[c]): 
                                     self.option_inds[c] = (self.option_inds[c]+1)%(len(self.option_strings[c]))
                                     if c == 0:
-                                        if self.option_inds[0] == 2: self.team_options = ["0"]; self.option_inds[2] = 0 #Rogue
-                                        elif self.option_inds[0] == 1:  self.team_options = ["2","4"]; self.option_inds[2] = (self.option_inds[2]+1)%2 #Area Capture
+                                        if self.option_inds[0] == 1:  self.team_options = ["2","4"]; self.option_inds[2] = (self.option_inds[2]+1)%2 #Area Capture
                                         else: self.team_options = ["0","2","4"] #TDM
                                         self.option_strings[2] = self.team_options
 
@@ -1498,13 +1496,12 @@ for n in range(1,FOOD_HUB_N+1):
 #main loop
 """"
 ===game_type - reflects rules and goal of the game
-    Values: Deathmatch, Area Capture, Rogue
+    Values: Deathmatch, Area Capture
 ===player_mode - reflects state of player
     Values: Player, Spectator, Pro, God
 ===game_teams - reflects amount of teams
     Values: 0 (FFA), 2, 4
     Must be 2,4 for game_type == Area Capture
-    Must be 0 for game_type == Rogue
 """
 def main_loop(game_type = "Deathmatch", player_mode = "Spectator", game_teams =  "0"):
     #instansiate classes and vars based on game type, player mode, and teams num
@@ -1518,8 +1515,9 @@ def main_loop(game_type = "Deathmatch", player_mode = "Spectator", game_teams = 
     elif game_type == "Area Capture":
         game = Game(chnkMngr, game_type, game_teams)
         for t in list(game.bots): t.addXP(randrange(0,5000))
-    elif game_type == "Rogue":
-        pass#TODO
+
+    #set up user team
+    user_team = TEAM_NULL if game_teams == 0 else randrange(0,game_teams)
 
     #set up camera
     camera = Camera(game, player_mode)
@@ -1528,11 +1526,10 @@ def main_loop(game_type = "Deathmatch", player_mode = "Spectator", game_teams = 
     #set up player evolve previews
     global PLAYER_EVOLVE_PREVIEWS
     PLAYER_EVOLVE_PREVIEWS = dict()
-    for tank_name in ALL_TANK_NAMES: PLAYER_EVOLVE_PREVIEWS[tank_name] = Player(game, camera, [0,0], tank_name,preview=True)
+    for tank_name in ALL_TANK_NAMES: PLAYER_EVOLVE_PREVIEWS[tank_name] = Player(game, camera, [0,0], tank_name, user_team, preview=True)
 
     #set up user based on player mode, and set camera target
     if player_mode in ["Player","Pro","God"]:
-        user_team = TEAM_NULL if game_teams == 0 else randrange(0,game_teams)
         new_pos = game.randomPos() if user_team == TEAM_NULL else randomInRect(game.spawn_fields[user_team])
         while not inRect(new_pos, MAP_SPAWN_RECT): new_pos = game.randomPos()
         user = Player(game, camera, new_pos , "Basic", user_team, preview=False)
